@@ -1,4 +1,4 @@
-import { Car, User, Reservation, Contract, Review } from "../types";
+import { Car, Invoice, NotificationItem, Reservation, User } from "../types";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -10,17 +10,23 @@ const getHeaders = () => {
   };
 };
 
+const parseJson = async (response: Response) => {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || "Une erreur est survenue.");
+  }
+  return data;
+};
+
 export const ApiService = {
-  getCars: async (filters?: any): Promise<Car[]> => {
+  getCars: async (): Promise<Car[]> => {
     const response = await fetch(`${API_URL}/cars`);
-    if (!response.ok) throw new Error("Erreur réseau");
-    return response.json();
+    return parseJson(response);
   },
 
-  getCarById: async (id: string): Promise<Car | undefined> => {
+  getCarById: async (id: string): Promise<Car> => {
     const response = await fetch(`${API_URL}/cars/${id}`);
-    if (!response.ok) throw new Error("Véhicule introuvable");
-    return response.json();
+    return parseJson(response);
   },
 
   createCar: async (carData: Partial<Car>): Promise<Car> => {
@@ -29,8 +35,7 @@ export const ApiService = {
       headers: getHeaders(),
       body: JSON.stringify(carData)
     });
-    if (!response.ok) throw new Error("Impossible de créer la voiture");
-    return response.json();
+    return parseJson(response);
   },
 
   register: async (data: any): Promise<{ token: string; user: User }> => {
@@ -39,11 +44,10 @@ export const ApiService = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Erreur d'enregistrement");
+    const result = await parseJson(response);
+    if (result.token) {
+      localStorage.setItem("token", result.token);
     }
-    const result = await response.json();
     return result;
   },
 
@@ -53,40 +57,61 @@ export const ApiService = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(credentials)
     });
-    
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Identifiants invalides");
+    const result = await parseJson(response);
+    if (result.token) {
+      localStorage.setItem("token", result.token);
     }
-    
-    const result = await response.json();
-    if(result.token) localStorage.setItem("token", result.token);
     return result;
   },
 
-  updatePassword: async (email: string, newPassword: string) => {
-    // Dans le monde réel on ferait un appel /auth/reset-password
-    // Ici on suppose que le endpoint existe ou on va simuler si absent
-    alert("Simulation: " + newPassword);
+  getProfile: async (): Promise<User> => {
+    const response = await fetch(`${API_URL}/users/profile`, {
+      headers: getHeaders()
+    });
+    return parseJson(response);
+  },
+
+  sendResetCode: async (email: string) => {
+    const response = await fetch(`${API_URL}/auth/forgot-password/send-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    return parseJson(response);
+  },
+
+  verifyResetCode: async (email: string, code: string): Promise<{ resetToken: string }> => {
+    const response = await fetch(`${API_URL}/auth/forgot-password/verify-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code })
+    });
+    return parseJson(response);
+  },
+
+  changeForgottenPassword: async (resetToken: string, newPassword: string) => {
+    const response = await fetch(`${API_URL}/auth/forgot-password/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resetToken, newPassword })
+    });
+    return parseJson(response);
   },
 
   getReservations: async (): Promise<Reservation[]> => {
     const response = await fetch(`${API_URL}/reservations/mon-historique`, {
       headers: getHeaders()
     });
-    if (!response.ok) throw new Error("Erreur");
-    const raw = await response.json();
-    return raw.map((r: any) => ({
-      ...r,
-      carId: r.car_id,
-      renterId: r.renter_id,
-      startDate: r.start_date,
-      endDate: r.end_date,
-      totalPrice: r.total_price
-    }));
+    return parseJson(response);
   },
 
-  createReservation: async (data: any): Promise<Reservation> => {
+  createReservation: async (data: {
+    carId: string;
+    startDate: string;
+    endDate: string;
+    totalPrice: number;
+    type: "rental" | "reservation";
+  }): Promise<{ reservation: Reservation; invoice?: Invoice }> => {
     const response = await fetch(`${API_URL}/reservations`, {
       method: "POST",
       headers: getHeaders(),
@@ -94,21 +119,48 @@ export const ApiService = {
         car_id: data.carId,
         start_date: data.startDate,
         end_date: data.endDate,
-        total_price: data.totalPrice
+        total_price: data.totalPrice,
+        type: data.type
       })
     });
-    if (!response.ok) throw new Error("Échec de la réservation");
-    const result = await response.json();
-    return { ...data, id: result.reservationId };
+    return parseJson(response);
   },
 
-  updateReservationStatus: async (id: string, status: string): Promise<Reservation> => {
+  updateReservationStatus: async (id: string, status: string) => {
     const response = await fetch(`${API_URL}/reservations/${id}/status`, {
       method: "PUT",
       headers: getHeaders(),
       body: JSON.stringify({ status })
     });
-    if (!response.ok) throw new Error("Erreur de mise à jour");
-    return response.json();
+    return parseJson(response);
+  },
+
+  getInvoices: async (): Promise<Invoice[]> => {
+    const response = await fetch(`${API_URL}/invoices`, {
+      headers: getHeaders()
+    });
+    return parseJson(response);
+  },
+
+  getNotifications: async (): Promise<NotificationItem[]> => {
+    const response = await fetch(`${API_URL}/notifications`, {
+      headers: getHeaders()
+    });
+    return parseJson(response);
+  },
+
+  markNotificationRead: async (id: string) => {
+    const response = await fetch(`${API_URL}/notifications/${id}/read`, {
+      method: "PUT",
+      headers: getHeaders()
+    });
+    return parseJson(response);
+  },
+
+  getAdminOverview: async () => {
+    const response = await fetch(`${API_URL}/admin/overview`, {
+      headers: getHeaders()
+    });
+    return parseJson(response);
   }
 };

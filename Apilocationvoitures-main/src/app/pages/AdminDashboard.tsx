@@ -1,144 +1,105 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { User, Car, Reservation } from "../types";
-import { Users, CarFront, FileText, Settings, Activity, Search, ShieldAlert, BadgeCheck } from "lucide-react";
-import { Link } from "react-router";
+import { BadgeCheck, CarFront, FileText, Users } from "lucide-react";
+import { ApiService } from "../services/api";
 
 export function AdminDashboard() {
-  const { user } = useAuth();
-  const [stats, setStats] = useState({ users: 0, cars: 0, activeReservations: 0, revenue: 0 });
+  const [overview, setOverview] = useState<any>({
+    stats: { users: 0, cars: 0, activeReservations: 0, revenue: 0 },
+    users: [],
+    cars: [],
+    reservations: []
+  });
 
   useEffect(() => {
-    // Mock fetch
-    setStats({
-      users: 145,
-      cars: 82,
-      activeReservations: 24,
-      revenue: 1540000
-    });
+    ApiService.getAdminOverview().then(setOverview).catch(console.error);
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Administration LocAutoCM</h1>
-        <div className="flex items-center gap-3">
-          <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5">
-            <BadgeCheck className="w-4 h-4" /> Admin
-          </span>
-          <span className="text-sm text-gray-500">{new Date().toLocaleDateString('fr-FR')}</span>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-10">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Administration LocAutoCM</h1>
+          <p className="text-sm text-gray-500 mt-2">Compte admin: admin@gmail.com / admin</p>
+        </div>
+        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+          <BadgeCheck className="w-4 h-4" /> Admin
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-500">Utilisateurs</h3>
+          <p className="text-3xl font-bold text-gray-900 mt-3">{overview.stats.users}</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-500">Vehicules</h3>
+          <p className="text-3xl font-bold text-gray-900 mt-3">{overview.stats.cars}</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-500">Reservations actives</h3>
+          <p className="text-3xl font-bold text-gray-900 mt-3">{overview.stats.activeReservations}</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-500">Facturation</h3>
+          <p className="text-3xl font-bold text-gray-900 mt-3">{Number(overview.stats.revenue).toLocaleString("fr-FR")} FCFA</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-500">Utilisateurs</h3>
-            <div className="bg-blue-50 p-2 rounded-lg"><Users className="w-5 h-5 text-blue-600" /></div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-bold text-gray-900">Utilisateurs</h2>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.users}</p>
-          <p className="text-sm text-green-600 font-medium mt-2">+12 ce mois</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-500">Véhicules</h3>
-            <div className="bg-orange-50 p-2 rounded-lg"><CarFront className="w-5 h-5 text-orange-600" /></div>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.cars}</p>
-          <p className="text-sm text-green-600 font-medium mt-2">+5 cette semaine</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-500">Réservations Actives</h3>
-            <div className="bg-purple-50 p-2 rounded-lg"><Activity className="w-5 h-5 text-purple-600" /></div>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.activeReservations}</p>
-          <p className="text-sm text-gray-500 font-medium mt-2">En cours</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-500">Commissions (Est.)</h3>
-            <div className="bg-green-50 p-2 rounded-lg"><FileText className="w-5 h-5 text-green-600" /></div>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.revenue.toLocaleString('fr-FR')} <span className="text-lg">FCFA</span></p>
-          <p className="text-sm text-green-600 font-medium mt-2">+15% vs mois dernier</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="text-lg font-bold text-gray-900">Dernières Activités</h2>
-            <button className="text-sm text-blue-600 font-medium hover:text-blue-700">Voir tout</button>
-          </div>
-          <ul className="divide-y divide-gray-100">
-            {[1, 2, 3, 4].map((i) => (
-              <li key={i} className="p-4 sm:px-6 hover:bg-gray-50 transition-colors flex items-center gap-4">
-                <div className={`p-2 rounded-full ${i % 2 === 0 ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                  {i % 2 === 0 ? <CarFront className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    {i % 2 === 0 ? "Nouveau véhicule ajouté (Toyota RAV4)" : "Nouvel utilisateur inscrit (Paul M.)"}
-                  </p>
-                  <p className="text-xs text-gray-500">Il y a {i * 2} heures</p>
-                </div>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <Search className="w-4 h-4" />
-                </button>
-              </li>
+          <div className="divide-y divide-gray-100">
+            {overview.users.map((user: any) => (
+              <div key={user.id} className="p-4">
+                <p className="font-semibold text-gray-900">{user.name}</p>
+                <p className="text-sm text-gray-600">{user.email}</p>
+                <p className="text-sm text-blue-600 mt-1">{user.role}</p>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-red-500" /> À vérifier
-            </h2>
-            <ul className="space-y-4">
-              <li className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-900">KYC en attente</span>
-                  <span className="text-xs text-gray-500">12 utilisateurs</span>
-                </div>
-                <button className="text-xs bg-red-50 text-red-700 px-2.5 py-1.5 rounded font-medium hover:bg-red-100">
-                  Examiner
-                </button>
-              </li>
-              <li className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-900">Litiges ouverts</span>
-                  <span className="text-xs text-gray-500">2 signalements</span>
-                </div>
-                <button className="text-xs bg-orange-50 text-orange-700 px-2.5 py-1.5 rounded font-medium hover:bg-orange-100">
-                  Gérer
-                </button>
-              </li>
-            </ul>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center gap-2">
+            <CarFront className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-bold text-gray-900">Voitures</h2>
           </div>
+          <div className="divide-y divide-gray-100">
+            {overview.cars.map((car: any) => (
+              <div key={car.id} className="p-4">
+                <p className="font-semibold text-gray-900">{car.make} {car.model}</p>
+                <p className="text-sm text-gray-600">{car.owner_name} • {car.location}</p>
+                <p className={`text-sm mt-1 ${car.available ? "text-green-600" : "text-red-600"}`}>
+                  {car.available ? "Disponible" : "Indisponible"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Actions Rapides</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <button className="bg-white border border-gray-200 rounded-lg p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors flex flex-col items-center gap-2 text-center">
-                <Users className="w-5 h-5" />
-                Gérer Utilisateurs
-              </button>
-              <button className="bg-white border border-gray-200 rounded-lg p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors flex flex-col items-center gap-2 text-center">
-                <CarFront className="w-5 h-5" />
-                Flotte
-              </button>
-              <button className="bg-white border border-gray-200 rounded-lg p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors flex flex-col items-center gap-2 text-center">
-                <FileText className="w-5 h-5" />
-                Contrats
-              </button>
-              <button className="bg-white border border-gray-200 rounded-lg p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors flex flex-col items-center gap-2 text-center">
-                <Settings className="w-5 h-5" />
-                Paramètres
-              </button>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 border-b border-gray-100 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-bold text-gray-900">Reservations et locations</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {overview.reservations.map((reservation: any) => (
+            <div key={reservation.id} className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="font-semibold text-gray-900">{reservation.car_name}</p>
+                <p className="text-sm text-gray-600">{reservation.renter_name} {"->"} {reservation.owner_name}</p>
+              </div>
+              <div className="text-left md:text-right">
+                <p className="text-sm text-gray-700">{reservation.type}</p>
+                <p className="text-sm text-blue-600">{Number(reservation.total_price).toLocaleString("fr-FR")} FCFA</p>
+                <p className="text-sm text-gray-500">{reservation.status}</p>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

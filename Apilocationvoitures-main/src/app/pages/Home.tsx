@@ -7,6 +7,7 @@ import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 
 export function Home() {
   const navigate = useNavigate();
@@ -151,7 +152,7 @@ export function Home() {
             {featuredCars.map((car) => (
               <div key={car.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl transition-shadow duration-300 group flex flex-col">
                 <div className="relative h-56 overflow-hidden bg-gray-200">
-                  <img 
+                  <ImageWithFallback 
                     src={car.images[0]} 
                     alt={`${car.make} ${car.model}`} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -168,10 +169,11 @@ export function Home() {
                       <p className="text-gray-500 text-sm flex items-center gap-1 mt-1">
                         <MapPin className="w-3.5 h-3.5" /> {car.location}
                       </p>
+                      <p className="text-gray-600 text-sm mt-1">Proprietaire: {car.ownerName}</p>
                     </div>
                     <div className="flex items-center bg-blue-50 px-2 py-1 rounded text-blue-700 font-semibold text-sm">
                       <Star className="w-3.5 h-3.5 fill-current mr-1" />
-                      {car.rating}
+                      {car.rating.toFixed(1)}
                     </div>
                   </div>
 

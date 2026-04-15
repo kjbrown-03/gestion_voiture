@@ -1,35 +1,172 @@
-# Répartition des Tests API (Postman) pour la Soutenance
+# Presentation Postman - LocAutoCM
 
-Voici la liste exacte des routes que chaque membre doit présenter et tester devant le jury via Postman. La répartition est faite sur les 12 endpoints obligatoires.
+## Membres du groupe
 
----
+- JB : chef du groupe
+- Keira
+- Kim
+- Grace
 
-### M. JB (Chef de Projet) 
-**Thème : Authentification et Découverte**
-1. `POST /api/auth/register` : Démonstration de l'inscription d'un nouvel utilisateur (exemple : un locataire).
-2. `POST /api/auth/login` : Vérification du Login et récupération du **Token JWT** dans la réponse de postman.
-3. `GET /api/cars` : Affichage de la liste de toutes les voitures disponibles au Cameroun.
+## Objectif de la presentation
 
----
+Pendant la presentation, nous montrons seulement les routes API a tester dans Postman.
 
-### Mme Keira (Développeuse Frontend & UI)
-**Thème : Gestion côté Propriétaire**
-4. `POST /api/cars` : Ajout d'un nouveau véhicule (avec utilisation du Token de propriétaire).
-5. `GET /api/cars/:id` : Récupération des informations d'un seul véhicule avec son identifiant.
-6. `PUT /api/cars/:id` : Modification du prix journalier du véhicule ajouté.
+## Repartition des passages
 
----
+### JB - Chef du groupe
 
-### Mme Kim (Développeuse Backend & BDD)
-**Thème : Gestion côté Locataire et Réservation**
-7. `POST /api/reservations` : Création d'une demande de location pour un véhicule précis.
-8. `GET /api/users/profile` : Affichage des données du profil de l'utilisateur avec le Token.
-9. `GET /api/reservations/mon-historique` : Liste des réservations passées par ce locataire.
+JB presente :
 
----
+- l'introduction rapide du projet
+- l'ordre global des tests
+- les routes d'authentification
+- la conclusion finale
 
-### Mme Grace (Ingénieure QA)
-**Thème : Finalisation, Annulation et Avis**
-10. `PUT /api/reservations/:id/status` : Changement du statut de la réservation (ex: "accepter" ou "annuler").
-11. `DELETE /api/cars/:id` : Suppression d'un véhicule du parc automobile (testé avec un rôle admin ou propriétaire).
-12. `POST /api/reviews` : Ajout d'une évaluation et d'une note sur 5 étoiles à la fin de la location.
+Routes a presenter :
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/users/profile`
+
+## Ce que JB doit dire
+
+- presenter brievement LocAutoCM
+- expliquer qu'on va tester l'API avec Postman
+- montrer l'inscription
+- montrer la connexion
+- montrer la recuperation du profil apres connexion avec le token
+
+### Keira
+
+Keira presente :
+
+- les routes des voitures
+- les tests de consultation des vehicules
+
+Routes a presenter :
+
+- `GET /api/cars`
+- `GET /api/cars/:id`
+- `POST /api/cars`
+
+## Ce que Keira doit dire
+
+- montrer la liste des voitures
+- montrer les details d'une voiture
+- montrer l'ajout d'une voiture par un proprietaire
+
+### Kim
+
+Kim presente :
+
+- les routes de reservation et location
+- la logique des statuts
+
+Routes a presenter :
+
+- `POST /api/reservations`
+- `GET /api/reservations/mon-historique`
+- `PUT /api/reservations/:id/status`
+
+## Ce que Kim doit dire
+
+- montrer une demande de location ou reservation
+- montrer l'historique
+- montrer l'acceptation ou le refus par le proprietaire
+- preciser que la facture est generee apres acceptation
+
+### Grace
+
+Grace presente :
+
+- les notifications
+- les factures
+- le mot de passe oublie
+- l'administration
+
+Routes a presenter :
+
+- `GET /api/notifications`
+- `PUT /api/notifications/:id/read`
+- `GET /api/invoices`
+- `POST /api/auth/forgot-password/send-code`
+- `POST /api/auth/forgot-password/verify-code`
+- `POST /api/auth/forgot-password/change-password`
+- `GET /api/admin/overview`
+
+## Ce que Grace doit dire
+
+- montrer les notifications
+- montrer les factures disponibles
+- montrer le flux mot de passe oublie
+- montrer que l'admin peut voir les statistiques generales
+
+## Ordre conseille dans Postman
+
+### 1. Authentification
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/users/profile`
+
+### 2. Voitures
+
+- `GET /api/cars`
+- `GET /api/cars/:id`
+- `POST /api/cars`
+
+### 3. Reservations
+
+- `POST /api/reservations`
+- `GET /api/reservations/mon-historique`
+- `PUT /api/reservations/:id/status`
+
+### 4. Notifications et factures
+
+- `GET /api/notifications`
+- `PUT /api/notifications/:id/read`
+- `GET /api/invoices`
+
+### 5. Mot de passe oublie
+
+- `POST /api/auth/forgot-password/send-code`
+- `POST /api/auth/forgot-password/verify-code`
+- `POST /api/auth/forgot-password/change-password`
+
+### 6. Administration
+
+- `GET /api/admin/overview`
+
+## Tokens a utiliser dans Postman
+
+Apres connexion avec :
+
+- admin
+- proprietaire
+- locataire
+
+il faut copier le token JWT dans :
+
+`Authorization: Bearer VOTRE_TOKEN`
+
+## Comptes utiles pour les tests
+
+- Admin : `admin@gmail.com`
+- Proprietaire : `jean@owner.com`
+- Proprietaire : `marie@owner.com`
+- Locataire : `paul@renter.com`
+
+## Note importante
+
+- les routes protegees ont besoin du token
+- la facture apparait apres acceptation
+- les notifications dependent de l'utilisateur connecte
+- le mot de passe oublie envoie un code par email
+
+## Petite introduction conseillee par JB
+
+"Bonjour, nous allons presenter notre projet LocAutoCM a travers les routes API testées dans Postman. Chaque membre va presenter un groupe de routes selon son role dans le projet."
+
+## Petite conclusion conseillee par JB
+
+"A travers ces tests Postman, nous montrons que notre API gere correctement l'authentification, les voitures, les reservations, les notifications, les factures et l'administration."

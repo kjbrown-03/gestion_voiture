@@ -1,19 +1,16 @@
--- Création de la base de données
 CREATE DATABASE IF NOT EXISTS locautocm_db;
 USE locautocm_db;
 
--- 1. Table des utilisateurs
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    phone VARCHAR(30) NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('renter', 'owner', 'admin') DEFAULT 'renter',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Table des véhicules
 CREATE TABLE IF NOT EXISTS cars (
     id INT AUTO_INCREMENT PRIMARY KEY,
     owner_id INT NOT NULL,
@@ -26,12 +23,11 @@ CREATE TABLE IF NOT EXISTS cars (
     seats INT NOT NULL,
     transmission ENUM('Automatique', 'Manuelle') NOT NULL,
     available BOOLEAN DEFAULT TRUE,
-    rating FLOAT DEFAULT 0.0,
+    rating FLOAT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 3. Table des images de voitures
 CREATE TABLE IF NOT EXISTS car_images (
     id INT AUTO_INCREMENT PRIMARY KEY,
     car_id INT NOT NULL,
@@ -39,7 +35,6 @@ CREATE TABLE IF NOT EXISTS car_images (
     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
 );
 
--- 4. Table des réservations (contrats de location)
 CREATE TABLE IF NOT EXISTS reservations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     car_id INT NOT NULL,
@@ -48,12 +43,12 @@ CREATE TABLE IF NOT EXISTS reservations (
     end_date DATE NOT NULL,
     total_price DECIMAL(10, 2) NOT NULL,
     status ENUM('pending', 'accepted', 'rejected', 'cancelled', 'completed') DEFAULT 'pending',
+    type ENUM('rental', 'reservation') DEFAULT 'reservation',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
     FOREIGN KEY (renter_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 5. Table des avis (notations propriétaires et véhicules)
 CREATE TABLE IF NOT EXISTS reviews (
     id INT AUTO_INCREMENT PRIMARY KEY,
     reservation_id INT NOT NULL,
@@ -65,8 +60,38 @@ CREATE TABLE IF NOT EXISTS reviews (
     FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Insertion de données de test (optionnel)
-INSERT INTO users (name, email, phone, password, role) VALUES 
-('JB Admin', 'admin@locautocm.com', '+237600000000', '$2b$10$XxxHashExempleXxx', 'admin'),
-('Proprio Test', 'proprio@locautocm.com', '+237611111111', '$2b$10$XxxHashExempleXxx', 'owner'),
-('Locataire Test', 'locataire@locautocm.com', '+237622222222', '$2b$10$XxxHashExempleXxx', 'renter');
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    message TEXT NOT NULL,
+    type ENUM('info', 'reservation', 'rental', 'invoice', 'security') DEFAULT 'info',
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id INT NOT NULL,
+    invoice_number VARCHAR(50) NOT NULL UNIQUE,
+    issued_to_user_id INT NOT NULL,
+    issued_by_user_id INT NOT NULL,
+    total_amount DECIMAL(10, 2) NOT NULL,
+    type ENUM('rental', 'reservation') DEFAULT 'reservation',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (issued_to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (issued_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

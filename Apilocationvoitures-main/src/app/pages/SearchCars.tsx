@@ -3,22 +3,26 @@ import { useSearchParams, Link } from "react-router";
 import { Filter, Star, MapPin, SlidersHorizontal, User, CarFront } from "lucide-react";
 import { ApiService } from "../services/api";
 import { Car } from "../types";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 
 export function SearchCars() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
+  const [allCars, setAllCars] = useState<Car[]>([]);
 
   // Filters state
   const [location, setLocation] = useState(searchParams.get("location") || "");
   const [category, setCategory] = useState("");
-  const [maxPrice, setMaxPrice] = useState<number>(100000);
+  const [minPrice, setMinPrice] = useState<number>(0);
+  const [maxPrice, setMaxPrice] = useState<number>(200000);
 
   useEffect(() => {
     const fetchCars = async () => {
       setLoading(true);
       try {
         const data = await ApiService.getCars();
+        setAllCars(data);
         // Simulate filtering
         let filtered = data;
         if (location) {
@@ -27,7 +31,10 @@ export function SearchCars() {
         if (category) {
           filtered = filtered.filter(c => c.category === category);
         }
-        if (maxPrice) {
+        if (minPrice > 0) {
+          filtered = filtered.filter(c => c.pricePerDay >= minPrice);
+        }
+        if (maxPrice > 0) {
           filtered = filtered.filter(c => c.pricePerDay <= maxPrice);
         }
         setCars(filtered);
@@ -38,7 +45,7 @@ export function SearchCars() {
       }
     };
     fetchCars();
-  }, [location, category, maxPrice, searchParams]);
+  }, [location, category, minPrice, maxPrice, searchParams]);
 
   const updateSearchParam = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -49,6 +56,8 @@ export function SearchCars() {
     }
     setSearchParams(newParams);
   };
+
+  const availableCategories = Array.from(new Set(allCars.map((car) => car.category))).sort();
 
   return (
     <div className="bg-gray-50 flex-1 flex">
@@ -84,7 +93,7 @@ export function SearchCars() {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Catégorie</label>
             <div className="space-y-2">
-              {['SUV', 'Berline', 'Citadine', '4x4', 'Utilitaire'].map((cat) => (
+              {availableCategories.map((cat) => (
                 <label key={cat} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -114,20 +123,31 @@ export function SearchCars() {
           {/* Price */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Prix max: <span className="text-blue-600 font-bold">{maxPrice.toLocaleString('fr-CM')} FCFA</span>/jour
+              Intervalle de prix
             </label>
-            <input
-              type="range"
-              min="10000"
-              max="200000"
-              step="5000"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="number"
+                min="0"
+                step="5000"
+                value={minPrice}
+                onChange={(e) => setMinPrice(parseInt(e.target.value || "0"))}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-sm outline-none focus:border-blue-500"
+                placeholder="Prix min"
+              />
+              <input
+                type="number"
+                min="0"
+                step="5000"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(parseInt(e.target.value || "0"))}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-sm outline-none focus:border-blue-500"
+                placeholder="Prix max"
+              />
+            </div>
             <div className="flex justify-between text-xs text-gray-500 mt-2">
-              <span>10k FCFA</span>
-              <span>200k FCFA</span>
+              <span>Min: {minPrice.toLocaleString('fr-CM')} FCFA</span>
+              <span>Max: {maxPrice.toLocaleString('fr-CM')} FCFA</span>
             </div>
           </div>
         </div>
@@ -164,7 +184,7 @@ export function SearchCars() {
               {cars.map((car) => (
                 <div key={car.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200 hover:shadow-lg hover:border-blue-200 transition-all duration-200 flex flex-col group">
                   <Link to={`/cars/${car.id}`} className="block relative h-48 overflow-hidden bg-gray-100">
-                    <img
+                    <ImageWithFallback
                       src={car.images[0]}
                       alt={`${car.make} ${car.model}`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -181,13 +201,14 @@ export function SearchCars() {
                       </Link>
                       <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-xs font-semibold shrink-0">
                         <Star className="w-3 h-3 fill-current" />
-                        {car.rating}
+                        {car.rating.toFixed(1)}
                       </div>
                     </div>
 
                     <p className="text-gray-500 text-sm flex items-center gap-1.5 mb-4">
                       <MapPin className="w-3.5 h-3.5 text-gray-400" /> {car.location}
                     </p>
+                    <p className="text-sm text-gray-600 mb-4">Proprietaire: {car.ownerName}</p>
 
                     <div className="flex gap-3 text-xs text-gray-600 mb-6">
                       <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
@@ -224,6 +245,7 @@ export function SearchCars() {
                 onClick={() => {
                   setLocation("");
                   setCategory("");
+                  setMinPrice(0);
                   setMaxPrice(200000);
                 }}
                 className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-6 py-2 rounded-lg font-medium transition-colors"
