@@ -14,8 +14,8 @@
 2. [Voitures](#2-voitures)
 3. [Réservations](#3-réservations)
 4. [Notation/Avis](#4-notationavis)
-5. [Factures](#5-factures)
-6. [Notifications](#6-notifications)
+5. [Notifications](#5-notifications)
+6. [Factures](#6-factures)
 7. [Admin](#7-admin)
 8. [Comptes de Test](#8-comptes-de-test)
 
@@ -305,7 +305,43 @@ Exemple: 35000 × 5 jours = 175000 FCFA
 
 ---
 
-### 4.2 Get My Reviews (Mes avis)
+### 4.2 Get Car Reviews (Voir les avis d'une voiture)
+**Endpoint:** `GET /api/cars/:id/reviews`
+
+**Authentification:** Non requise (public)
+
+**Body:** Aucun (GET request)
+
+**Exemple:**
+```
+GET /api/cars/1/reviews
+```
+
+**Réponse:**
+```json
+[
+  {
+    "id": "1",
+    "rating": 5,
+    "comment": "Excellente voiture, très propre et confortable!",
+    "reviewerName": "Paul Locataire",
+    "createdAt": "2026-04-16T10:30:00Z"
+  },
+  {
+    "id": "2",
+    "rating": 4,
+    "comment": "Bon rapport qualité-prix",
+    "reviewerName": "Marie Dupont",
+    "createdAt": "2026-04-15T14:20:00Z"
+  }
+]
+```
+
+**Note:** Cet endpoint est public, tout le monde peut voir les avis d'une voiture
+
+---
+
+### 4.3 Get My Reviews (Mes avis)
 **Endpoint:** `GET /api/reviews/my-reviews`
 
 **Authentification:** Requise
@@ -316,9 +352,108 @@ Exemple: 35000 × 5 jours = 175000 FCFA
 
 ---
 
-## 5. FACTURES
+### 🔄 WORKFLOW COMPLET: TESTER LE SYSTÈME D'AVIS
 
-### 5.1 Get My Invoices
+**Objectif:** Créer une location, la compléter, puis laisser un avis
+
+#### **Étape 1: Se connecter comme Renter**
+```
+POST /api/auth/login
+Body:
+{
+  "email": "paul@renter.com",
+  "password": "123456"
+}
+```
+→ Copier le token reçu
+
+#### **Étape 2: Créer une Réservation**
+```
+POST /api/reservations
+Header: Authorization: Bearer {token}
+Body:
+{
+  "car_id": 1,
+  "start_date": "2026-04-20",
+  "end_date": "2026-04-25",
+  "total_price": 175000,
+  "type": "rental"
+}
+```
+→ Noter l'ID de la réservation (ex: 1)
+
+#### **Étape 3: Se connecter comme Owner**
+```
+POST /api/auth/login
+Body:
+{
+  "email": "jean@owner.com",
+  "password": "123456"
+}
+```
+→ Copier le nouveau token
+
+#### **Étape 4: Accepter la Réservation**
+```
+PUT /api/reservations/1/status
+Header: Authorization: Bearer {token}
+Body:
+{
+  "status": "accepted"
+}
+```
+
+#### **Étape 5: Compléter la Réservation**
+```
+PUT /api/reservations/1/status
+Header: Authorization: Bearer {token}
+Body:
+{
+  "status": "completed"
+}
+```
+
+#### **Étape 6: Se reconnecter comme Renter**
+```
+POST /api/auth/login
+Body:
+{
+  "email": "paul@renter.com",
+  "password": "123456"
+}
+```
+→ Copier le token
+
+#### **Étape 7: Soumettre un Avis ⭐**
+```
+POST /api/reviews
+Header: Authorization: Bearer {token}
+Body:
+{
+  "reservation_id": 1,
+  "rating": 5,
+  "comment": "Très satisfait! Voiture propre et confortable."
+}
+```
+
+#### **Étape 8: Voir les Avis de la Voiture**
+```
+GET /api/cars/1/reviews
+```
+→ L'avis apparaît avec la note et le commentaire
+
+#### **Étape 9: Vérifier les Notifications (Owner)**
+```
+GET /api/notifications
+Header: Authorization: Bearer {owner_token}
+```
+→ Notification reçue: "⭐⭐⭐⭐⭐ pour Toyota RAV4"
+
+---
+
+## 6. FACTURES
+
+### 6.1 Get My Invoices
 **Endpoint:** `GET /api/invoices`
 
 **Authentification:** Requise
@@ -332,18 +467,34 @@ Exemple: 35000 × 5 jours = 175000 FCFA
 
 ---
 
-## 6. NOTIFICATIONS
+## 5. NOTIFICATIONS
 
-### 6.1 Get My Notifications
+### 5.1 Get My Notifications
 **Endpoint:** `GET /api/notifications`
 
 **Authentification:** Requise
 
 **Body:** Aucun (GET request)
 
+**Exemple de réponse pour un avis:**
+```json
+[
+  {
+    "id": "1",
+    "title": "⭐⭐⭐⭐⭐ pour Toyota RAV4",
+    "message": "Paul Locataire a laissé un avis de 5/5 avec le commentaire: \"Excellente voiture, très propre et confortable!\"",
+    "type": "info",
+    "isRead": false,
+    "createdAt": "2026-04-16T10:30:00Z"
+  }
+]
+```
+
+**Note:** Les propriétaires reçoivent automatiquement une notification quand un locataire laisse un avis sur leur voiture
+
 ---
 
-### 6.2 Mark Notification as Read
+### 5.2 Mark Notification as Read
 **Endpoint:** `PUT /api/notifications/1/read`
 
 **Authentification:** Requise

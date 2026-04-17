@@ -367,6 +367,16 @@ const bootstrapDatabase = async () => {
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )`);
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    car_id INT NOT NULL,
+    user_id INT NOT NULL,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+
   await ensureColumnExists('reservations', 'type', `ENUM('rental','reservation') DEFAULT 'reservation'`);
   await ensureColumnExists('notifications', 'is_read', `BOOLEAN DEFAULT FALSE`);
   
@@ -1177,6 +1187,12 @@ app.post('/api/reviews', authMiddleware, async (req, res) => {
       return res.status(409).json({ message: "Vous avez déjà noté cette location." });
     }
 
+    // Get reviewer name
+    const [[reviewer]] = await pool.execute(
+      'SELECT name FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
     // Insert the review
     await pool.execute(
       'INSERT INTO reviews (reservation_id, reviewer_id, rating, comment) VALUES (?, ?, ?, ?)',
@@ -1196,17 +1212,18 @@ app.post('/api/reviews', authMiddleware, async (req, res) => {
       );
     }
 
-    // Notify car owner
+    // Notify car owner with detailed information
     const [[carInfo]] = await pool.execute(
-      'SELECT owner_id FROM cars WHERE id = ?',
+      `SELECT c.owner_id, CONCAT(c.make, ' ', c.model) AS car_name 
+       FROM cars c WHERE c.id = ?`,
       [reservation.car_id]
     );
     
     if (carInfo) {
       await createNotification(
         carInfo.owner_id,
-        'Nouvel avis reçu',
-        `Un locataire a laissé un avis de ${rating}/5 pour votre véhicule.`,
+        `Nouvel avis ${'⭐'.repeat(rating)} pour ${carInfo.car_name}`,
+        `${reviewer?.name || 'Un locataire'} a laissé un avis de ${rating}/5 avec le commentaire: "${comment || 'Sans commentaire'}".`,
         'info'
       );
     }
@@ -1265,6 +1282,83 @@ app.get('/api/reviews/my-reviews', authMiddleware, async (req, res) => {
       reservationId: String(review.reservation_id),
       createdAt: review.created_at
     })));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all comments for a specific car
+app.get('/api/cars/:id/comments', async (req, res) => {
+  try {
+    const [comments] = await pool.execute(
+      `SELECT c.id, c.comment, c.created_at, u.name AS user_name, u.role AS user_role
+       FROM comments c
+       JOIN users u ON u.id = c.user_id
+       WHERE c.car_id = ?
+       ORDER BY c.created_at DESC`,
+      [req.params.id]
+    );
+
+    res.json(comments.map(c => ({
+      id: String(c.id),
+      comment: c.comment,
+      userName: c.user_name,
+      userRole: c.user_role,
+      createdAt: c.created_at
+    })));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Submit a comment for a car
+app.post('/api/cars/:id/comments', authMiddleware, async (req, res) => {
+  try {
+    const carId = req.params.id;
+    const { comment } = req.body;
+    const userId = req.user.id;
+
+    if (!comment || comment.trim() === '') {
+      return res.status(400).json({ message: "Le commentaire ne peut pas être vide." });
+    }
+
+    // Verify car
+    const [[carInfo]] = await pool.execute(
+      `SELECT c.owner_id, CONCAT(c.make, ' ', c.model) AS car_name 
+       FROM cars c WHERE c.id = ?`,
+      [carId]
+    );
+
+    if (!carInfo) {
+      return res.status(404).json({ message: "Véhicule introuvable." });
+    }
+
+    // Insert comment
+    const [result] = await pool.execute(
+      'INSERT INTO comments (car_id, user_id, comment) VALUES (?, ?, ?)',
+      [carId, userId, comment.trim()]
+    );
+
+    // Get user details for response
+    const [[user]] = await pool.execute('SELECT name, role FROM users WHERE id = ?', [userId]);
+
+    // Notify car owner
+    if (String(carInfo.owner_id) !== String(userId)) {
+      await createNotification(
+        carInfo.owner_id,
+        `Nouveau commentaire sur ${carInfo.car_name}`,
+        `${user.name} a laissé un commentaire sur votre voiture : "${comment.substring(0, 50)}${comment.length > 50 ? '...' : ''}"`,
+        'info'
+      );
+    }
+
+    res.status(201).json({
+      id: String(result.insertId),
+      comment: comment.trim(),
+      userName: user.name,
+      userRole: user.role,
+      createdAt: new Date()
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

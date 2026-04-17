@@ -187,5 +187,19 @@ export const ApiService = {
       headers: getHeaders()
     });
     return parseJson(response);
+  },
+
+  getCarComments: async (carId: string): Promise<any[]> => {
+    const response = await fetch(`${API_URL}/cars/${carId}/comments`);
+    return parseJson(response);
+  },
+
+  submitCarComment: async (carId: string, comment: string): Promise<any> => {
+    const response = await fetch(`${API_URL}/cars/${carId}/comments`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ comment })
+    });
+    return parseJson(response);
   }
 };

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { Star, MapPin, Calendar, CheckCircle2, Shield, ShieldCheck, CarFront, User, Info, ArrowLeft } from "lucide-react";
+import { Star, MapPin, Calendar, CheckCircle2, Shield, ShieldCheck, CarFront, User, Info, ArrowLeft, MessageSquare, Send } from "lucide-react";
 import { ApiService } from "../services/api";
-import { Car } from "../types";
+import { Car, Review } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 
@@ -19,6 +19,13 @@ export function CarDetails() {
   const [showInvoice, setShowInvoice] = useState(false);
   const [requestType, setRequestType] = useState<"rental" | "reservation" | null>(null);
   const [actionError, setActionError] = useState("");
+  
+  // Comments state
+  const [comments, setComments] = useState<any[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -28,6 +35,13 @@ export function CarDetails() {
         setActiveImage(0);
       })
       .finally(() => setLoading(false));
+    
+    // Fetch comments
+    setLoadingComments(true);
+    ApiService.getCarComments(id)
+      .then((data) => setComments(data))
+      .catch(console.error)
+      .finally(() => setLoadingComments(false));
   }, [id]);
 
   const calculateDays = () => {
@@ -63,6 +77,35 @@ export function CarDetails() {
       setActionError(error instanceof Error ? error.message : "Erreur lors de l'operation.");
     } finally {
       setSubmitting(null);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    if (!user) {
+      setCommentError("Vous devez être connecté pour laisser un commentaire.");
+      return;
+    }
+    
+    setSubmittingComment(true);
+    setCommentError("");
+    
+    try {
+      if (id) {
+        await ApiService.submitCarComment(id, newComment);
+        
+        // Refresh comments
+        const updatedComments = await ApiService.getCarComments(id);
+        setComments(updatedComments);
+        
+        // Reset form
+        setNewComment("");
+        setCommentError("");
+        alert("Merci pour votre commentaire ! Le propriétaire a été notifié.");
+      }
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : "Erreur lors de l'envoi du commentaire.");
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -184,6 +227,90 @@ export function CarDetails() {
                 </div>
               </div>
               <span className="text-sm text-gray-500">{car.ownerEmail}</span>
+            </div>
+
+            {/* Comments Section */}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-3 mb-6">
+                <MessageSquare className="w-6 h-6 text-blue-600" />
+                <h2 className="text-2xl font-bold text-gray-900">Commentaires des locataires</h2>
+                <span className="bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded-full">
+                  {comments.length}
+                </span>
+              </div>
+
+              {/* Add Comment Form */}
+              {user && (user.role === 'renter' || user.id !== car.ownerId) && (
+                <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Laisser un commentaire</h3>
+                  
+                  {commentError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                      {commentError}
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Qu'avez-vous pensé de cette voiture ?"
+                        rows={3}
+                        className="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={handleSubmitComment}
+                      disabled={submittingComment || !newComment.trim()}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-lg transition-all"
+                    >
+                      <Send className="w-4 h-4" />
+                      {submittingComment ? "Envoi..." : "Publier"}
+                    </button>
+                    
+                  </div>
+                </div>
+              )}
+
+              {/* Comments List */}
+              {loadingComments ? (
+                <div className="text-center py-8 text-gray-500">Chargement des commentaires...</div>
+              ) : comments.length > 0 ? (
+                <div className="space-y-4">
+                  {comments.map((commentItem) => (
+                    <div key={commentItem.id} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">
+                            {commentItem.userName?.slice(0, 2).toUpperCase() || 'U'}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{commentItem.userName || 'Utilisateur'}</h4>
+                            <p className="text-xs text-gray-500">
+                              {new Date(commentItem.createdAt).toLocaleDateString('fr-FR', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-gray-700 leading-relaxed ml-13">{commentItem.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
+                  <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucun commentaire</h3>
+                  <p className="text-gray-500 text-sm">Soyez le premier à donner votre point de vue sur cette voiture !</p>
+                </div>
+              )}
             </div>
           </div>
 
