@@ -175,6 +175,7 @@ const mapReservation = (row) => ({
   totalPrice: Number(row.total_price),
   status: row.status,
   type: row.type,
+  withDriver: Boolean(row.with_driver),
   createdAt: row.created_at,
   invoiceId: row.invoice_id ? String(row.invoice_id) : null,
   invoiceNumber: row.invoice_number || null,
@@ -258,6 +259,57 @@ const normalizeRating = (rating) => {
   return numericRating > 0 ? Number(numericRating.toFixed(1)) : 4.0;
 };
 
+const toIsoDate = (value) => new Date(value).toISOString().split('T')[0];
+
+const isTodayWithinPeriod = (from, to) => {
+  const today = toIsoDate(new Date());
+  return from <= today && today <= to;
+};
+
+const getUnavailablePeriodsByCarIds = async (carIds = []) => {
+  if (!Array.isArray(carIds) || carIds.length === 0) {
+    return new Map();
+  }
+
+  const placeholders = carIds.map(() => '?').join(', ');
+  const [rows] = await pool.query(
+    `SELECT car_id, start_date, end_date
+     FROM reservations
+     WHERE car_id IN (${placeholders})
+       AND status IN ('pending', 'accepted')
+       AND end_date >= CURDATE()
+     ORDER BY start_date ASC`,
+    carIds
+  );
+
+  const periodsByCar = new Map();
+  for (const row of rows) {
+    const periods = periodsByCar.get(row.car_id) || [];
+    periods.push({
+      from: toIsoDate(row.start_date),
+      to: toIsoDate(row.end_date)
+    });
+    periodsByCar.set(row.car_id, periods);
+  }
+
+  return periodsByCar;
+};
+
+const hasReservationConflict = async (carId, startDate, endDate) => {
+  const [[conflict]] = await pool.execute(
+    `SELECT id
+     FROM reservations
+     WHERE car_id = ?
+       AND status IN ('pending', 'accepted')
+       AND start_date <= ?
+       AND end_date >= ?
+     LIMIT 1`,
+    [carId, endDate, startDate]
+  );
+
+  return Boolean(conflict);
+};
+
 const ensureColumnExists = async (tableName, columnName, definition) => {
   const [rows] = await pool.execute(
     `SELECT COUNT(*) AS count
@@ -315,6 +367,7 @@ const bootstrapDatabase = async () => {
     total_price DECIMAL(10,2) NOT NULL,
     status ENUM('pending','accepted','rejected','cancelled','completed') DEFAULT 'pending',
     type ENUM('rental','reservation') DEFAULT 'reservation',
+    with_driver BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
     FOREIGN KEY (renter_id) REFERENCES users(id) ON DELETE CASCADE
@@ -378,6 +431,7 @@ const bootstrapDatabase = async () => {
   )`);
 
   await ensureColumnExists('reservations', 'type', `ENUM('rental','reservation') DEFAULT 'reservation'`);
+  await ensureColumnExists('reservations', 'with_driver', `BOOLEAN DEFAULT FALSE`);
   await ensureColumnExists('notifications', 'is_read', `BOOLEAN DEFAULT FALSE`);
   
   // Fix location names to match frontend (add accents)
@@ -651,6 +705,8 @@ app.get('/api/cars', async (_req, res) => {
       imagesByCar.set(image.car_id, list);
     }
 
+    const unavailablePeriodsByCar = await getUnavailablePeriodsByCarIds(rows.map((car) => car.id));
+
     res.json(rows.map((car, index) => ({
       id: String(car.id),
       make: car.make,
@@ -663,7 +719,8 @@ app.get('/api/cars', async (_req, res) => {
       ownerId: String(car.owner_id),
       ownerName: car.owner_name,
       ownerEmail: car.owner_email,
-      available: Boolean(car.available),
+      available: !(unavailablePeriodsByCar.get(car.id) || []).some((period) => isTodayWithinPeriod(period.from, period.to)),
+      unavailablePeriods: unavailablePeriodsByCar.get(car.id) || [],
       category: car.category,
       seats: car.seats,
       transmission: car.transmission
@@ -689,6 +746,8 @@ app.get('/api/cars/:id', async (req, res) => {
     const car = rows[0];
     const [imgRows] = await pool.execute('SELECT image_url FROM car_images WHERE car_id = ? ORDER BY id ASC', [car.id]);
     const validImages = imgRows.map((item) => item.image_url).filter((image) => image && String(image).trim());
+    const unavailablePeriodsByCar = await getUnavailablePeriodsByCarIds([car.id]);
+    const unavailablePeriods = unavailablePeriodsByCar.get(car.id) || [];
 
     res.json({
       id: String(car.id),
@@ -702,10 +761,32 @@ app.get('/api/cars/:id', async (req, res) => {
       ownerId: String(car.owner_id),
       ownerName: car.owner_name,
       ownerEmail: car.owner_email,
-      available: Boolean(car.available),
+      available: !unavailablePeriods.some((period) => isTodayWithinPeriod(period.from, period.to)),
+      unavailablePeriods,
       category: car.category,
       seats: car.seats,
       transmission: car.transmission
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/cars/:id/availability', async (req, res) => {
+  try {
+    const [[car]] = await pool.execute('SELECT id FROM cars WHERE id = ?', [req.params.id]);
+
+    if (!car) {
+      return res.status(404).json({ message: "Véhicule introuvable." });
+    }
+
+    const unavailablePeriodsByCar = await getUnavailablePeriodsByCarIds([car.id]);
+    const unavailablePeriods = unavailablePeriodsByCar.get(car.id) || [];
+
+    res.json({
+      carId: String(car.id),
+      available: !unavailablePeriods.some((period) => isTodayWithinPeriod(period.from, period.to)),
+      unavailablePeriods
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
