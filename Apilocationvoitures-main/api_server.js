@@ -16,14 +16,14 @@ const PORT = Number(process.env.PORT || 5000);
 const SECRET_KEY = process.env.JWT_SECRET || 'SUPER_SECRET_LOCAUTO_KEY';
 
 const defaultImages = [
-  "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1503376766023-ebee8b44400a?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&q=80&w=1000",
-  "https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&q=80&w=1000"
+  "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=1000", // Toyota RAV4
+  "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000", // Generic car
+  "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=1000", // Sports car
+  "https://images.unsplash.com/photo-1609521263047-f8f205293f21?auto=format&fit=crop&q=80&w=1000", // Hyundai Tucson
+  "https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&q=80&w=1000", // Peugeot
+  "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=1000", // Mercedes
+  "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&q=80&w=1000", // Luxury car
+  "https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&q=80&w=1000"  // SUV
 ];
 
 const seededCars = [
@@ -45,7 +45,7 @@ const seededCars = [
     model: 'Tucson',
     year: 2022,
     pricePerDay: 32000,
-    location: 'Yaounde',
+    location: 'Yaoundé',
     category: 'SUV',
     seats: 5,
     transmission: 'Automatique',
@@ -105,7 +105,7 @@ const seededCars = [
     model: 'Camry',
     year: 2023,
     pricePerDay: 30000,
-    location: 'Yaounde',
+    location: 'Yaoundé',
     category: 'Berline',
     seats: 5,
     transmission: 'Automatique',
@@ -369,6 +369,26 @@ const bootstrapDatabase = async () => {
 
   await ensureColumnExists('reservations', 'type', `ENUM('rental','reservation') DEFAULT 'reservation'`);
   await ensureColumnExists('notifications', 'is_read', `BOOLEAN DEFAULT FALSE`);
+  
+  // Fix location names to match frontend (add accents)
+  await pool.execute("UPDATE cars SET location = 'Yaoundé' WHERE location = 'Yaounde'");
+  
+  // Fix Tucson images - delete old and re-insert with correct URLs
+  const [[tucsonCar]] = await pool.execute(
+    "SELECT id FROM cars WHERE make = 'Hyundai' AND model = 'Tucson' LIMIT 1"
+  );
+  
+  if (tucsonCar) {
+    // Delete existing images for Tucson
+    await pool.execute('DELETE FROM car_images WHERE car_id = ?', [tucsonCar.id]);
+    
+    // Insert new images
+    const tucsonImages = [defaultImages[3], defaultImages[5], defaultImages[7]];
+    for (const imageUrl of tucsonImages) {
+      await pool.execute('INSERT INTO car_images (car_id, image_url) VALUES (?, ?)', [tucsonCar.id, imageUrl]);
+    }
+  }
+  
   await pool.execute('UPDATE cars SET rating = 4.0 WHERE rating IS NULL OR rating <= 0');
   await pool.execute('UPDATE cars SET pricePerDay = pricePerDay * 1000 WHERE pricePerDay > 0 AND pricePerDay < 1000');
 
@@ -1122,14 +1142,129 @@ app.get('/api/admin/overview', authMiddleware, async (req, res) => {
   }
 });
 
+// Submit a review for a completed rental
 app.post('/api/reviews', authMiddleware, async (req, res) => {
   try {
     const { reservation_id, rating, comment } = req.body;
+
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: "La note doit être entre 1 et 5." });
+    }
+
+    // Verify the user is the renter of this reservation
+    const [[reservation]] = await pool.execute(
+      'SELECT * FROM reservations WHERE id = ? AND renter_id = ?',
+      [reservation_id, req.user.id]
+    );
+
+    if (!reservation) {
+      return res.status(404).json({ message: "Réservation introuvable ou vous n'êtes pas autorisé à noter cette réservation." });
+    }
+
+    // Only allow reviews for completed rentals
+    if (reservation.status !== 'completed') {
+      return res.status(400).json({ message: "Vous ne pouvez noter que les locations terminées." });
+    }
+
+    // Check if user already reviewed this reservation
+    const [[existingReview]] = await pool.execute(
+      'SELECT id FROM reviews WHERE reservation_id = ? AND reviewer_id = ?',
+      [reservation_id, req.user.id]
+    );
+
+    if (existingReview) {
+      return res.status(409).json({ message: "Vous avez déjà noté cette location." });
+    }
+
+    // Insert the review
     await pool.execute(
       'INSERT INTO reviews (reservation_id, reviewer_id, rating, comment) VALUES (?, ?, ?, ?)',
-      [reservation_id, req.user.id, rating, comment]
+      [reservation_id, req.user.id, rating, comment || null]
     );
-    res.status(201).json({ message: "Avis soumis avec succès." });
+
+    // Update car's average rating
+    const [[avgRating]] = await pool.execute(
+      'SELECT AVG(rating) AS avg_rating FROM reviews WHERE reservation_id IN (SELECT id FROM reservations WHERE car_id = ?)',
+      [reservation.car_id]
+    );
+
+    if (avgRating.avg_rating) {
+      await pool.execute(
+        'UPDATE cars SET rating = ? WHERE id = ?',
+        [parseFloat(avgRating.avg_rating), reservation.car_id]
+      );
+    }
+
+    // Notify car owner
+    const [[carInfo]] = await pool.execute(
+      'SELECT owner_id FROM cars WHERE id = ?',
+      [reservation.car_id]
+    );
+    
+    if (carInfo) {
+      await createNotification(
+        carInfo.owner_id,
+        'Nouvel avis reçu',
+        `Un locataire a laissé un avis de ${rating}/5 pour votre véhicule.`,
+        'info'
+      );
+    }
+
+    res.status(201).json({ message: "Avis soumis avec succès.", rating, comment });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all reviews for a specific car
+app.get('/api/cars/:id/reviews', async (req, res) => {
+  try {
+    const [reviews] = await pool.execute(
+      `SELECT r.id, r.rating, r.comment, r.created_at, u.name AS reviewer_name
+       FROM reviews r
+       JOIN reservations res ON res.id = r.reservation_id
+       JOIN users u ON u.id = r.reviewer_id
+       WHERE res.car_id = ?
+       ORDER BY r.created_at DESC`,
+      [req.params.id]
+    );
+
+    res.json(reviews.map(review => ({
+      id: String(review.id),
+      rating: review.rating,
+      comment: review.comment,
+      reviewerName: review.reviewer_name,
+      createdAt: review.created_at
+    })));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get reviews for the authenticated user (as reviewer)
+app.get('/api/reviews/my-reviews', authMiddleware, async (req, res) => {
+  try {
+    const [reviews] = await pool.execute(
+      `SELECT r.id, r.rating, r.comment, r.created_at, 
+              CONCAT(c.make, ' ', c.model) AS car_name,
+              res.id AS reservation_id
+       FROM reviews r
+       JOIN reservations res ON res.id = r.reservation_id
+       JOIN cars c ON c.id = res.car_id
+       WHERE r.reviewer_id = ?
+       ORDER BY r.created_at DESC`,
+      [req.user.id]
+    );
+
+    res.json(reviews.map(review => ({
+      id: String(review.id),
+      rating: review.rating,
+      comment: review.comment,
+      carName: review.car_name,
+      reservationId: String(review.reservation_id),
+      createdAt: review.created_at
+    })));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

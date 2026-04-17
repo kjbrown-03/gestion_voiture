@@ -1,4 +1,4 @@
-import { Car, Invoice, NotificationItem, Reservation, User } from "../types";
+import { Car, Invoice, NotificationItem, Reservation, Review, User } from "../types";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -159,6 +159,31 @@ export const ApiService = {
 
   getAdminOverview: async () => {
     const response = await fetch(`${API_URL}/admin/overview`, {
+      headers: getHeaders()
+    });
+    return parseJson(response);
+  },
+
+  submitReview: async (data: {
+    reservation_id: number;
+    rating: number;
+    comment?: string;
+  }): Promise<{ message: string; rating: number; comment?: string }> => {
+    const response = await fetch(`${API_URL}/reviews`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseJson(response);
+  },
+
+  getCarReviews: async (carId: string): Promise<Review[]> => {
+    const response = await fetch(`${API_URL}/cars/${carId}/reviews`);
+    return parseJson(response);
+  },
+
+  getMyReviews: async (): Promise<Review[]> => {
+    const response = await fetch(`${API_URL}/reviews/my-reviews`, {
       headers: getHeaders()
     });
     return parseJson(response);

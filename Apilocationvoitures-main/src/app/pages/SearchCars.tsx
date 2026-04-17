@@ -23,20 +23,32 @@ export function SearchCars() {
       try {
         const data = await ApiService.getCars();
         setAllCars(data);
-        // Simulate filtering
+        
+        // Apply filters
         let filtered = data;
+        
+        // Filter by location (case-insensitive and accent-insensitive)
         if (location) {
-          filtered = filtered.filter(c => c.location.toLowerCase().includes(location.toLowerCase()));
+          const normalizedFilter = location.toLowerCase().replace(/[éèêë]/g, 'e');
+          filtered = filtered.filter(c => {
+            const normalizedLocation = c.location.toLowerCase().replace(/[éèêë]/g, 'e');
+            return normalizedLocation.includes(normalizedFilter);
+          });
         }
+        
+        // Filter by category
         if (category) {
           filtered = filtered.filter(c => c.category === category);
         }
+        
+        // Filter by price range
         if (minPrice > 0) {
           filtered = filtered.filter(c => c.pricePerDay >= minPrice);
         }
-        if (maxPrice > 0) {
+        if (maxPrice < 200000) {
           filtered = filtered.filter(c => c.pricePerDay <= maxPrice);
         }
+        
         setCars(filtered);
       } catch (error) {
         console.error("Error fetching cars:", error);
@@ -45,7 +57,7 @@ export function SearchCars() {
       }
     };
     fetchCars();
-  }, [location, category, minPrice, maxPrice, searchParams]);
+  }, [location, category, minPrice, maxPrice]);
 
   const updateSearchParam = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -247,6 +259,7 @@ export function SearchCars() {
                   setCategory("");
                   setMinPrice(0);
                   setMaxPrice(200000);
+                  setSearchParams(new URLSearchParams());
                 }}
                 className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-6 py-2 rounded-lg font-medium transition-colors"
               >
