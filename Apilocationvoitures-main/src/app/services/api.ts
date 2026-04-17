@@ -135,6 +135,15 @@ export const ApiService = {
     return parseJson(response);
   },
 
+  updateCarImages: async (id: string, images: string[]) => {
+    const response = await fetch(`${API_URL}/cars/${id}/images`, {
+      method: "PUT",
+      headers: getHeaders(),
+      body: JSON.stringify({ images })
+    });
+    return parseJson(response);
+  },
+
   getInvoices: async (): Promise<Invoice[]> => {
     const response = await fetch(`${API_URL}/invoices`, {
       headers: getHeaders()

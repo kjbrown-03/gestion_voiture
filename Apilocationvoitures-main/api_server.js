@@ -774,6 +774,36 @@ app.post('/api/cars', authMiddleware, async (req, res) => {
   }
 });
 
+app.put('/api/cars/:id/images', authMiddleware, async (req, res) => {
+  if (!['owner', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ message: "Accès refusé." });
+  }
+  try {
+    const { images = [] } = req.body;
+    const carId = req.params.id;
+    
+    // Check ownership
+    const [[car]] = await pool.execute('SELECT owner_id FROM cars WHERE id = ?', [carId]);
+    if (!car) return res.status(404).json({ message: "Voiture introuvable." });
+    if (String(car.owner_id) !== String(req.user.id) && req.user.role !== 'admin') {
+       return res.status(403).json({ message: "Vous n'êtes pas propriétaire de ce véhicule." });
+    }
+    
+    await pool.execute('DELETE FROM car_images WHERE car_id = ?', [carId]);
+    const safeImages = Array.isArray(images) && images.length > 0 ? images.slice(0, 8) : [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg/800px-2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg"
+    ];
+    for (const image of safeImages) {
+      if (image?.trim()) {
+        await pool.execute('INSERT INTO car_images (car_id, image_url) VALUES (?, ?)', [carId, image.trim()]);
+      }
+    }
+    res.json({ message: "Images mises à jour avec succès." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.get('/api/reservations/mon-historique', authMiddleware, async (req, res) => {
   try {
     let query = `
