@@ -25,7 +25,7 @@ export function SearchCars() {
         setAllCars(data);
         
         // Apply filters
-        let filtered = data;
+        let filtered = [...data].sort((a, b) => Number(b.available) - Number(a.available));
         
         // Filter by location (case-insensitive and accent-insensitive)
         if (location) {
@@ -221,6 +221,9 @@ export function SearchCars() {
                       <MapPin className="w-3.5 h-3.5 text-gray-400" /> {car.location}
                     </p>
                     <p className="text-sm text-gray-600 mb-4">Proprietaire: {car.ownerName}</p>
+                    <div className={`mb-4 inline-flex rounded-full px-3 py-1 text-xs font-bold ${car.available ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}>
+                      {car.available ? "Disponible aujourd'hui" : "Dates deja prises"}
+                    </div>
 
                     <div className="flex gap-3 text-xs text-gray-600 mb-6">
                       <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md border border-gray-100">

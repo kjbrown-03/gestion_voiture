@@ -188,8 +188,7 @@ export function Layout() {
                   onClick={async () => {
                     if (!notification.isRead) {
                       await ApiService.markNotificationRead(notification.id);
-                      const updated = await ApiService.getNotifications();
-                      setNotifications(updated);
+                      setNotifications((current) => current.filter((item) => item.id !== notification.id));
                     }
                   }}
                   className={`w-full text-left rounded-xl border p-4 ${notification.isRead ? "bg-gray-50 border-gray-200" : "bg-blue-50 border-blue-200"}`}

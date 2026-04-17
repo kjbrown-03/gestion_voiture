@@ -1,32 +1,29 @@
-# 📋 Guide de Test API - LocAutoCM
+# Guide de Test API - LocAutoCM
 
-## 🔐 Comment utiliser ce guide avec Postman
+## Base URL
 
-1. Importer le fichier `Postman_Collection.json` dans Postman
-2. Le token sera automatiquement sauvegardé après le login
-3. Chaque requête indique le body raw nécessaire
+`http://localhost:5000/api`
 
----
+## Sommaire
 
-## 📚 TABLE DES MATIÈRES
-
-1. [Authentification](#1-authentification)
-2. [Voitures](#2-voitures)
-3. [Réservations](#3-réservations)
-4. [Notation/Avis](#4-notationavis)
-5. [Notifications](#5-notifications)
-6. [Factures](#6-factures)
-7. [Admin](#7-admin)
-8. [Comptes de Test](#8-comptes-de-test)
+1. Authentification
+2. Voitures et disponibilite
+3. Reservations et locations
+4. Avis et commentaires
+5. Notifications
+6. Factures
+7. Admin
+8. Comptes de test
+9. Notes Render gratuit
 
 ---
 
-## 1. AUTHENTIFICATION
+## 1. Authentification
 
-### 1.1 Register (Inscription)
+### 1.1 Inscription
+
 **Endpoint:** `POST /api/auth/register`
 
-**Body Raw (JSON):**
 ```json
 {
   "name": "John Doe",
@@ -37,19 +34,17 @@
 }
 ```
 
-**Paramètres:**
-- `name` (string, requis): Nom complet
-- `email` (string, requis): Email unique
-- `phone` (string, requis): Numéro de téléphone
-- `password` (string, requis): Mot de passe (min 6 caractères)
-- `role` (string, optionnel): "renter", "owner", ou "admin" (par défaut: "renter")
+Champs:
+- `name` requis
+- `email` requis et unique
+- `phone` requis
+- `password` requis
+- `role` optionnel: `renter`, `owner`, `admin`
 
----
+### 1.2 Connexion
 
-### 1.2 Login (Connexion)
 **Endpoint:** `POST /api/auth/login`
 
-**Body Raw (JSON):**
 ```json
 {
   "email": "admin@gmail.com",
@@ -57,38 +52,30 @@
 }
 ```
 
-**Paramètres:**
-- `email` (string, requis): Email du compte
-- `password` (string, requis): Mot de passe
+Reponse importante:
+- retourne `token`
+- utiliser ensuite `Authorization: Bearer {token}`
 
-**Réponse importante:** Retourne un `token` JWT à utiliser dans les requêtes authentifiées
+### 1.3 Profil connecte
 
-**Header pour les requêtes suivantes:**
-```
-Authorization: Bearer {votre_token}
-```
+**Endpoint:** `GET /api/users/profile`
 
----
+Auth requise.
 
-### 1.3 Forgot Password - Send Code
+### 1.4 Mot de passe oublie - envoyer code
+
 **Endpoint:** `POST /api/auth/forgot-password/send-code`
 
-**Body Raw (JSON):**
 ```json
 {
   "email": "john@example.com"
 }
 ```
 
-**Paramètres:**
-- `email` (string, requis): Email du compte
+### 1.5 Mot de passe oublie - verifier code
 
----
-
-### 1.4 Forgot Password - Verify Code
 **Endpoint:** `POST /api/auth/forgot-password/verify-code`
 
-**Body Raw (JSON):**
 ```json
 {
   "email": "john@example.com",
@@ -96,68 +83,80 @@ Authorization: Bearer {votre_token}
 }
 ```
 
-**Paramètres:**
-- `email` (string, requis): Email du compte
-- `code` (string, requis): Code à 6 chiffres reçu par email
+### 1.6 Mot de passe oublie - changer mot de passe
 
-**Réponse:** Retourne un `resetToken`
-
----
-
-### 1.5 Forgot Password - Change Password
 **Endpoint:** `POST /api/auth/forgot-password/change-password`
 
-**Body Raw (JSON):**
 ```json
 {
-  "resetToken": "votre-reset-token-ici",
-  "newPassword": "nouveau_mot_de_passe123"
+  "resetToken": "votre-reset-token",
+  "newPassword": "nouveau-mot-de-passe"
 }
 ```
 
-**Paramètres:**
-- `resetToken` (string, requis): Token obtenu après vérification du code
-- `newPassword` (string, requis): Nouveau mot de passe
+### 1.7 Google
+
+Le bouton Google a ete ajoute dans l'interface `Connexion` et `Inscription`, mais aucun endpoint OAuth Google n'est encore implemente dans l'API actuelle.
 
 ---
 
-### 1.6 Get Profile
-**Endpoint:** `GET /api/users/profile`
+## 2. Voitures et disponibilite
 
-**Authentification:** Requise (Bearer Token)
+### 2.1 Lister toutes les voitures
 
-**Body:** Aucun (GET request)
-
----
-
-## 2. VOITURES
-
-### 2.1 Get All Cars (Lister toutes les voitures)
 **Endpoint:** `GET /api/cars`
 
-**Authentification:** Non requise
+Public.
 
-**Body:** Aucun (GET request)
+Notes:
+- la reponse inclut `available`
+- la reponse inclut aussi `unavailablePeriods`
+- `available` indique surtout la disponibilite actuelle
+- les dates deja prises servent a griser le calendrier dans la page detail
 
----
+### 2.2 Voir une voiture
 
-### 2.2 Get Car by ID
-**Endpoint:** `GET /api/cars/1`
+**Endpoint:** `GET /api/cars/:id`
 
-**Authentification:** Non requise
+Exemple:
+- `GET /api/cars/1`
 
-**Body:** Aucun (GET request)
+### 2.3 Voir la disponibilite d'une voiture
 
-**Note:** Remplacer `1` par l'ID de la voiture souhaitée
+**Endpoint:** `GET /api/cars/:id/availability`
 
----
+Exemple:
+- `GET /api/cars/1/availability`
 
-### 2.3 Create Car (Ajouter une voiture)
+Exemple de reponse:
+
+```json
+{
+  "carId": "1",
+  "available": true,
+  "unavailablePeriods": [
+    {
+      "from": "2026-04-20",
+      "to": "2026-04-25"
+    },
+    {
+      "from": "2026-05-02",
+      "to": "2026-05-04"
+    }
+  ]
+}
+```
+
+Important:
+- ces periodes sont les dates a griser dans le calendrier
+- une reservation en conflit sur ces dates doit etre refusee
+
+### 2.4 Ajouter une voiture
+
 **Endpoint:** `POST /api/cars`
 
-**Authentification:** Requise (owner ou admin uniquement)
+Auth requise: `owner` ou `admin`
 
-**Body Raw (JSON):**
 ```json
 {
   "make": "Toyota",
@@ -169,554 +168,334 @@ Authorization: Bearer {votre_token}
   "seats": 5,
   "transmission": "Automatique",
   "images": [
-    "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7",
-    "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf"
+    "https://example.com/1.jpg",
+    "https://example.com/2.jpg"
   ]
 }
 ```
 
-**Paramètres:**
-- `make` (string, requis): Marque (ex: Toyota, Peugeot)
-- `model` (string, requis): Modèle (ex: Corolla, 208)
-- `year` (number, requis): Année de fabrication
-- `pricePerDay` (number, requis): Prix par jour en FCFA
-- `location` (string, requis): Ville (ex: Douala, Yaounde)
-- `category` (string, requis): Catégorie (SUV, Berline, Citadine, 4x4, Utilitaire)
-- `seats` (number, requis): Nombre de places
-- `transmission` (string, requis): "Automatique" ou "Manuelle"
-- `images` (array, optionnel): URLs des images (max 8)
+### 2.5 Mettre a jour les images d'une voiture
 
----
+**Endpoint:** `PUT /api/cars/:id/images`
 
-### 2.4 Get Car Reviews (Voir les avis d'une voiture)
-**Endpoint:** `GET /api/cars/1/reviews`
+Auth requise.
 
-**Authentification:** Non requise
-
-**Body:** Aucun (GET request)
-
-**Réponse:** Liste des avis avec note, commentaire, nom du locataire
-
----
-
-## 3. RÉSERVATIONS
-
-### 3.1 Get My Reservations (Historique)
-**Endpoint:** `GET /api/reservations/mon-historique`
-
-**Authentification:** Requise
-
-**Body:** Aucun (GET request)
-
-**Note:** 
-- Renter: voit ses propres réservations
-- Owner: voit les réservations de ses voitures
-- Admin: voit toutes les réservations
-
----
-
-### 3.2 Create Reservation (Créer une réservation)
-**Endpoint:** `POST /api/reservations`
-
-**Authentification:** Requise (renter uniquement)
-
-**Body Raw (JSON):**
 ```json
 {
-  "car_id": 1,
-  "start_date": "2026-04-20",
-  "end_date": "2026-04-25",
-  "total_price": 175000,
-  "type": "reservation"
+  "images": [
+    "https://example.com/1.jpg",
+    "https://example.com/2.jpg"
+  ]
 }
 ```
 
-**Paramètres:**
-- `car_id` (number, requis): ID de la voiture
-- `start_date` (string, requis): Date de début (format: YYYY-MM-DD)
-- `end_date` (string, requis): Date de fin (format: YYYY-MM-DD)
-- `total_price` (number, requis): Prix total (pricePerDay × nombre de jours)
-- `type` (string, requis): "reservation" ou "rental"
+### 2.6 Voir les avis d'une voiture
 
-**Calcul du prix:**
-```
-total_price = pricePerDay × nombre_de_jours
-Exemple: 35000 × 5 jours = 175000 FCFA
-```
-
----
-
-### 3.3 Update Reservation Status (Modifier le statut)
-**Endpoint:** `PUT /api/reservations/1/status`
-
-**Authentification:** Requise (owner uniquement)
-
-**Body Raw (JSON):**
-```json
-{
-  "status": "accepted"
-}
-```
-
-**Paramètres:**
-- `status` (string, requis): L'un des suivants:
-  - `"pending"`: En attente
-  - `"accepted"`: Acceptée
-  - `"rejected"`: Refusée
-  - `"completed"`: Terminée
-  - `"cancelled"`: Annulée
-
-**Note:** Remplacer `1` par l'ID de la réservation
-
----
-
-## 4. NOTATION/AVIS
-
-### 4.1 Submit Review (Soumettre un avis) ⭐
-**Endpoint:** `POST /api/reviews`
-
-**Authentification:** Requise (renter uniquement)
-
-**Body Raw (JSON):**
-```json
-{
-  "reservation_id": 1,
-  "rating": 5,
-  "comment": "Excellente voiture, très propre et confortable!"
-}
-```
-
-**Paramètres:**
-- `reservation_id` (number, requis): ID de la réservation
-- `rating` (number, requis): Note de 1 à 5 étoiles
-- `comment` (string, optionnel): Commentaire détaillé
-
-**⚠️ CONDITIONS IMPORTANTES:**
-1. La réservation doit appartenir à l'utilisateur connecté
-2. Le statut de la réservation doit être `"completed"`
-3. L'utilisateur ne peut noter qu'**UNE SEULE FOIS** par réservation
-4. Seul un locataire (renter) peut laisser un avis
-
-**Workflow pour tester:**
-1. Créer une réservation (statut: pending)
-2. Owner accepte la réservation (statut: accepted)
-3. Owner complète la réservation (statut: completed)
-4. Renter peut maintenant laisser un avis
-
----
-
-### 4.2 Get Car Reviews (Voir les avis d'une voiture)
 **Endpoint:** `GET /api/cars/:id/reviews`
 
-**Authentification:** Non requise (public)
+Public.
 
-**Body:** Aucun (GET request)
+### 2.7 Voir les commentaires d'une voiture
 
-**Exemple:**
-```
-GET /api/cars/1/reviews
-```
+**Endpoint:** `GET /api/cars/:id/comments`
 
-**Réponse:**
+Public.
+
+### 2.8 Ajouter un commentaire sur une voiture
+
+**Endpoint:** `POST /api/cars/:id/comments`
+
+Auth requise.
+
 ```json
-[
-  {
-    "id": "1",
-    "rating": 5,
-    "comment": "Excellente voiture, très propre et confortable!",
-    "reviewerName": "Paul Locataire",
-    "createdAt": "2026-04-16T10:30:00Z"
-  },
-  {
-    "id": "2",
-    "rating": 4,
-    "comment": "Bon rapport qualité-prix",
-    "reviewerName": "Marie Dupont",
-    "createdAt": "2026-04-15T14:20:00Z"
-  }
-]
-```
-
-**Note:** Cet endpoint est public, tout le monde peut voir les avis d'une voiture
-
----
-
-### 4.3 Get My Reviews (Mes avis)
-**Endpoint:** `GET /api/reviews/my-reviews`
-
-**Authentification:** Requise
-
-**Body:** Aucun (GET request)
-
-**Réponse:** Liste de tous les avis donnés par l'utilisateur
-
----
-
-### 🔄 WORKFLOW COMPLET: TESTER LE SYSTÈME D'AVIS
-
-**Objectif:** Créer une location, la compléter, puis laisser un avis
-
-#### **Étape 1: Se connecter comme Renter**
-```
-POST /api/auth/login
-Body:
 {
-  "email": "paul@renter.com",
-  "password": "123456"
+  "comment": "Vehicule propre et tres pratique."
 }
 ```
-→ Copier le token reçu
 
-#### **Étape 2: Créer une Réservation**
-```
-POST /api/reservations
-Header: Authorization: Bearer {token}
-Body:
+---
+
+## 3. Reservations et locations
+
+### 3.1 Voir mon historique
+
+**Endpoint:** `GET /api/reservations/mon-historique`
+
+Auth requise.
+
+Comportement:
+- `renter`: ses reservations
+- `owner`: reservations de ses vehicules
+- `admin`: toutes les reservations
+
+### 3.2 Creer une reservation ou location
+
+**Endpoint:** `POST /api/reservations`
+
+Auth requise: `renter` ou `admin`
+
+```json
 {
   "car_id": 1,
   "start_date": "2026-04-20",
   "end_date": "2026-04-25",
-  "total_price": 175000,
-  "type": "rental"
+  "total_price": 183750,
+  "type": "rental",
+  "with_driver": true
 }
 ```
-→ Noter l'ID de la réservation (ex: 1)
 
-#### **Étape 3: Se connecter comme Owner**
-```
-POST /api/auth/login
-Body:
-{
-  "email": "jean@owner.com",
-  "password": "123456"
-}
-```
-→ Copier le nouveau token
+Champs:
+- `car_id` requis
+- `start_date` requis
+- `end_date` requis
+- `total_price` requis
+- `type` requis: `reservation` ou `rental`
+- `with_driver` requis cote front, bool: `true` ou `false`
 
-#### **Étape 4: Accepter la Réservation**
-```
-PUT /api/reservations/1/status
-Header: Authorization: Bearer {token}
-Body:
+Regles importantes:
+- le vehicule peut etre loue avec ou sans chauffeur
+- l'API refuse une reservation si les dates chevauchent une periode deja prise
+- en cas de conflit, l'API renvoie une erreur `409`
+
+### 3.3 Modifier le statut d'une reservation
+
+**Endpoint:** `PUT /api/reservations/:id/status`
+
+Auth requise: `owner` ou `admin`
+
+```json
 {
   "status": "accepted"
 }
 ```
 
-#### **Étape 5: Compléter la Réservation**
-```
-PUT /api/reservations/1/status
-Header: Authorization: Bearer {token}
-Body:
-{
-  "status": "completed"
-}
-```
+Valeurs possibles:
+- `pending`
+- `accepted`
+- `rejected`
+- `completed`
+- `cancelled`
 
-#### **Étape 6: Se reconnecter comme Renter**
-```
-POST /api/auth/login
-Body:
-{
-  "email": "paul@renter.com",
-  "password": "123456"
-}
-```
-→ Copier le token
+---
 
-#### **Étape 7: Soumettre un Avis ⭐**
-```
-POST /api/reviews
-Header: Authorization: Bearer {token}
-Body:
+## 4. Avis et commentaires
+
+### 4.1 Soumettre un avis
+
+**Endpoint:** `POST /api/reviews`
+
+Auth requise.
+
+```json
 {
   "reservation_id": 1,
   "rating": 5,
-  "comment": "Très satisfait! Voiture propre et confortable."
+  "comment": "Excellente voiture, tres propre et confortable."
 }
 ```
 
-#### **Étape 8: Voir les Avis de la Voiture**
-```
-GET /api/cars/1/reviews
-```
-→ L'avis apparaît avec la note et le commentaire
+Conditions:
+- la reservation doit appartenir a l'utilisateur connecte
+- le statut doit etre `completed`
+- un seul avis par reservation
 
-#### **Étape 9: Vérifier les Notifications (Owner)**
-```
-GET /api/notifications
-Header: Authorization: Bearer {owner_token}
-```
-→ Notification reçue: "⭐⭐⭐⭐⭐ pour Toyota RAV4"
+### 4.2 Voir mes avis
+
+**Endpoint:** `GET /api/reviews/my-reviews`
+
+Auth requise.
 
 ---
 
-## 6. FACTURES
+## 5. Notifications
 
-### 6.1 Get My Invoices
-**Endpoint:** `GET /api/invoices`
+### 5.1 Voir mes notifications actives
 
-**Authentification:** Requise
-
-**Body:** Aucun (GET request)
-
-**Note:** 
-- Renter: voit ses propres factures
-- Owner: voit les factures de ses voitures
-- Admin: voit toutes les factures
-
----
-
-## 5. NOTIFICATIONS
-
-### 5.1 Get My Notifications
 **Endpoint:** `GET /api/notifications`
 
-**Authentification:** Requise
+Auth requise.
 
-**Body:** Aucun (GET request)
+Important:
+- par defaut, seules les notifications non lues sont retournees
+- quand une notification est traitee et marquee comme lue, elle disparait de la liste active
 
-**Exemple de réponse pour un avis:**
-```json
-[
-  {
-    "id": "1",
-    "title": "⭐⭐⭐⭐⭐ pour Toyota RAV4",
-    "message": "Paul Locataire a laissé un avis de 5/5 avec le commentaire: \"Excellente voiture, très propre et confortable!\"",
-    "type": "info",
-    "isRead": false,
-    "createdAt": "2026-04-16T10:30:00Z"
-  }
-]
-```
+### 5.2 Voir toutes mes notifications, y compris lues
 
-**Note:** Les propriétaires reçoivent automatiquement une notification quand un locataire laisse un avis sur leur voiture
+**Endpoint:** `GET /api/notifications?includeRead=true`
 
----
+Auth requise.
 
-### 5.2 Mark Notification as Read
-**Endpoint:** `PUT /api/notifications/1/read`
+### 5.3 Marquer une notification comme lue
 
-**Authentification:** Requise
+**Endpoint:** `PUT /api/notifications/:id/read`
 
-**Body:** Aucun (PUT request sans body)
+Auth requise.
 
-**Note:** Remplacer `1` par l'ID de la notification
+Pas de body requis.
 
 ---
 
-## 7. ADMIN
+## 6. Factures
 
-### 7.1 Get Admin Overview
+### 6.1 Voir mes factures
+
+**Endpoint:** `GET /api/invoices`
+
+Auth requise.
+
+---
+
+## 7. Admin
+
+### 7.1 Vue globale admin
+
 **Endpoint:** `GET /api/admin/overview`
 
-**Authentification:** Requise (admin uniquement)
-
-**Body:** Aucun (GET request)
-
-**Réponse:** Statistiques complètes:
-- Nombre d'utilisateurs
-- Nombre de voitures
-- Réservations actives
-- Revenus totaux
-- Liste des utilisateurs, voitures et réservations
+Auth requise: `admin`
 
 ---
 
-## 8. COMPTES DE TEST
+## 8. Comptes de test
 
-### Comptes disponibles après le démarrage du serveur:
+### Admin
 
-#### 📌 Admin
 ```json
 {
   "email": "admin@gmail.com",
   "password": "admin"
 }
 ```
-**Permissions:** Accès complet, gestion de tout le système
 
----
+### Owner 1
 
-#### 📌 Owner 1 (Jean Proprio)
 ```json
 {
   "email": "jean@owner.com",
   "password": "123456"
 }
 ```
-**Permissions:** Gérer ses voitures et ses réservations
 
----
+### Owner 2
 
-#### 📌 Owner 2 (Marie Proprio)
 ```json
 {
   "email": "marie@owner.com",
   "password": "123456"
 }
 ```
-**Permissions:** Gérer ses voitures et ses réservations
 
----
+### Renter
 
-#### 📌 Renter (Paul Locataire)
 ```json
 {
   "email": "paul@renter.com",
   "password": "123456"
 }
 ```
-**Permissions:** Réserver des voitures et laisser des avis
 
 ---
 
-## 🔄 SCÉNARIO COMPLET DE TEST
+## 9. Workflow conseille pour tester la disponibilite
 
-### Tester le système de notation étape par étape:
+### Etape 1
 
-#### Étape 1: Se connecter comme Renter
-```
-POST /api/auth/login
-Body:
-{
-  "email": "paul@renter.com",
-  "password": "123456"
-}
-```
-→ Copier le token reçu
+Se connecter comme renter:
 
-#### Étape 2: Créer une réservation
-```
+`POST /api/auth/login`
+
+### Etape 2
+
+Verifier la disponibilite de la voiture:
+
+`GET /api/cars/1/availability`
+
+### Etape 3
+
+Creer une premiere location:
+
+```json
 POST /api/reservations
-Header: Authorization: Bearer {token}
-Body:
 {
   "car_id": 1,
   "start_date": "2026-04-20",
   "end_date": "2026-04-25",
-  "total_price": 175000,
-  "type": "rental"
+  "total_price": 183750,
+  "type": "rental",
+  "with_driver": false
 }
 ```
-→ Noter l'ID de la réservation (ex: 1)
 
-#### Étape 3: Se connecter comme Owner
-```
-POST /api/auth/login
-Body:
+### Etape 4
+
+Reverifier:
+
+`GET /api/cars/1/availability`
+
+Les dates `2026-04-20` a `2026-04-25` doivent maintenant apparaitre dans `unavailablePeriods`.
+
+### Etape 5
+
+Tenter une reservation en conflit:
+
+```json
+POST /api/reservations
 {
-  "email": "jean@owner.com",
-  "password": "123456"
-}
-```
-→ Copier le nouveau token
-
-#### Étape 4: Accepter la réservation
-```
-PUT /api/reservations/1/status
-Header: Authorization: Bearer {token}
-Body:
-{
-  "status": "accepted"
+  "car_id": 1,
+  "start_date": "2026-04-22",
+  "end_date": "2026-04-24",
+  "total_price": 110250,
+  "type": "reservation",
+  "with_driver": true
 }
 ```
 
-#### Étape 5: Compléter la réservation
-```
-PUT /api/reservations/1/status
-Header: Authorization: Bearer {token}
-Body:
-{
-  "status": "completed"
-}
-```
+Resultat attendu:
+- erreur `409`
+- message indiquant que le vehicule n'est pas disponible sur les dates selectionnees
 
-#### Étape 6: Se reconnecter comme Renter
-```
-POST /api/auth/login
-Body:
-{
-  "email": "paul@renter.com",
-  "password": "123456"
-}
-```
-→ Copier le token
+### Etape 6
 
-#### Étape 7: Soumettre un avis ⭐
-```
-POST /api/reviews
-Header: Authorization: Bearer {token}
-Body:
-{
-  "reservation_id": 1,
-  "rating": 5,
-  "comment": "Très satisfait! Voiture propre et confortable."
-}
-```
+Verifier les notifications owner:
 
-#### Étape 8: Voir les avis de la voiture
-```
-GET /api/cars/1/reviews
-```
-→ L'avis apparaît avec la note et le commentaire
+`GET /api/notifications`
+
+### Etape 7
+
+Marquer une notification comme lue:
+
+`PUT /api/notifications/:id/read`
+
+Resultat attendu:
+- elle disparait de la liste active
 
 ---
 
-## ❌ CODES D'ERREUR COURANTS
+## 10. Notes Render gratuit
 
-| Code | Signification | Solution |
-|------|---------------|----------|
-| 400 | Requête invalide | Vérifier le format des données |
-| 401 | Token invalide | Se reconnecter pour obtenir un nouveau token |
-| 403 | Accès refusé | Vérifier les permissions (role) |
-| 404 | Ressource introuvable | Vérifier l'ID dans l'URL |
-| 409 | Conflit (déjà noté) | Cette réservation a déjà été notée |
-| 500 | Erreur serveur | Vérifier les logs du serveur |
+Pour deployer gratuitement sur Render, il te faut au minimum:
+- un repo GitHub avec le projet
+- un service web Render pour le backend Node
+- un site statique Render pour le frontend Vite, ou un second service web si tu sers tout ensemble
+- une base de donnees externe accessible depuis Render
+- les variables d'environnement du backend
 
----
+Variables minimales cote backend:
+- `PORT`
+- `JWT_SECRET`
+- `DB_HOST`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+- `GMAIL_USER`
+- `GMAIL_APP_PASSWORD`
 
-## 💡 ASTUCES POSTMAN
+Attention:
+- le service web gratuit Render se met en veille apres inactivite
+- les services web gratuits ne supportent pas l'envoi SMTP sortant sur les ports `25`, `465` et `587`
+- pour ce projet, l'email Gmail via `nodemailer` risque donc d'etre bloque en gratuit si tu l'envoies directement depuis Render
+- il vaut mieux utiliser un fournisseur email HTTP API compatible Render, ou desactiver temporairement l'envoi d'emails en production gratuite
 
-1. **Variables d'environnement:**
-   - Créer une variable `base_url` = `http://localhost:5000/api`
-   - Créer une variable `token` qui sera mise à jour automatiquement
-
-2. **Auto-save du token:**
-   - La collection inclut un script qui sauvegarde automatiquement le token après le login
-
-3. **Headers automatiques:**
-   - Les requêtes authentifiées utilisent déjà `{{token}}` dans le header Authorization
-
-4. **Test rapide:**
-   - Utiliser le folder "📋 TEST SCENARIOS" pour un workflow complet pré-configuré
-
----
-
-## 🚀 DÉMARRAGE RAPIDE
-
-1. **Lancer le serveur:**
-```bash
-node api_server.js
-```
-
-2. **Importer la collection Postman:**
-   - Ouvrir Postman
-   - Click sur Import
-   - Sélectionner `Postman_Collection.json`
-
-3. **Tester le login:**
-   - Exécuter la requête "Login"
-   - Le token est sauvegardé automatiquement
-
-4. **Commencer à tester:**
-   - Suivre les scénarios ou tester chaque endpoint individuellement
-
----
-
-## 📞 SUPPORT
-
-Pour toute question ou problème:
-- Vérifier que le serveur est lancé sur `http://localhost:5000`
-- Vérifier que la base de données MySQL est configurée dans `.env`
-- Consulter les logs du serveur pour les erreurs détaillées
+Sources officielles Render:
+- https://render.com/docs/free
+- https://render.com/docs/web-services

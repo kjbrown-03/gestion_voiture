@@ -1,4 +1,4 @@
-import { Car, Invoice, NotificationItem, Reservation, Review, User } from "../types";
+import { Car, CarAvailability, Invoice, NotificationItem, Reservation, Review, User } from "../types";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -26,6 +26,11 @@ export const ApiService = {
 
   getCarById: async (id: string): Promise<Car> => {
     const response = await fetch(`${API_URL}/cars/${id}`);
+    return parseJson(response);
+  },
+
+  getCarAvailability: async (id: string): Promise<CarAvailability> => {
+    const response = await fetch(`${API_URL}/cars/${id}/availability`);
     return parseJson(response);
   },
 
@@ -111,6 +116,7 @@ export const ApiService = {
     endDate: string;
     totalPrice: number;
     type: "rental" | "reservation";
+    withDriver: boolean;
   }): Promise<{ reservation: Reservation; invoice?: Invoice }> => {
     const response = await fetch(`${API_URL}/reservations`, {
       method: "POST",
@@ -120,7 +126,8 @@ export const ApiService = {
         start_date: data.startDate,
         end_date: data.endDate,
         total_price: data.totalPrice,
-        type: data.type
+        type: data.type,
+        with_driver: data.withDriver
       })
     });
     return parseJson(response);

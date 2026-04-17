@@ -19,7 +19,7 @@ const defaultImages = [
   "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=1000", // Toyota RAV4
   "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000", // Generic car
   "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=1000", // Sports car
-  "https://images.unsplash.com/photo-1609521263047-f8f205293f21?auto=format&fit=crop&q=80&w=1000", // Hyundai Tucson
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg/800px-2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg", // Hyundai Tucson
   "https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&q=80&w=1000", // Peugeot
   "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=1000", // Mercedes
   "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&q=80&w=1000", // Luxury car
@@ -447,7 +447,11 @@ const bootstrapDatabase = async () => {
     await pool.execute('DELETE FROM car_images WHERE car_id = ?', [tucsonCar.id]);
     
     // Insert new images
-    const tucsonImages = [defaultImages[3], defaultImages[5], defaultImages[7]];
+    const tucsonImages = [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg/800px-2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Hyundai_Tucson_NX4_IMG_3872.jpg/800px-Hyundai_Tucson_NX4_IMG_3872.jpg",
+      defaultImages[7]
+    ];
     for (const imageUrl of tucsonImages) {
       await pool.execute('INSERT INTO car_images (car_id, image_url) VALUES (?, ?)', [tucsonCar.id, imageUrl]);
     }
@@ -943,10 +947,18 @@ app.get('/api/reservations/mon-historique', authMiddleware, async (req, res) => 
 
 app.post('/api/reservations', authMiddleware, async (req, res) => {
   try {
-    const { car_id, start_date, end_date, total_price, type = 'reservation' } = req.body;
+    const { car_id, start_date, end_date, total_price, type = 'reservation', with_driver = false } = req.body;
 
     if (!['renter', 'admin'].includes(req.user.role)) {
       return res.status(403).json({ message: "Seul un locataire peut effectuer cette action." });
+    }
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({ message: "Les dates de début et de fin sont requises." });
+    }
+
+    if (new Date(start_date) > new Date(end_date)) {
+      return res.status(400).json({ message: "La date de début doit être antérieure ou égale à la date de fin." });
     }
 
     const [[car]] = await pool.execute(`
@@ -960,32 +972,32 @@ app.post('/api/reservations', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Véhicule introuvable." });
     }
 
-    if (!car.available) {
-      return res.status(400).json({ message: "Ce véhicule n'est plus disponible." });
+    if (await hasReservationConflict(car_id, start_date, end_date)) {
+      return res.status(409).json({ message: "Ce véhicule n'est pas disponible sur les dates sélectionnées." });
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO reservations (car_id, renter_id, start_date, end_date, total_price, status, type)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-      [car_id, req.user.id, start_date, end_date, total_price, type]
+      `INSERT INTO reservations (car_id, renter_id, start_date, end_date, total_price, status, type, with_driver)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      [car_id, req.user.id, start_date, end_date, total_price, type, Boolean(with_driver)]
     );
 
     const reservationId = result.insertId;
-    await pool.execute('UPDATE cars SET available = FALSE WHERE id = ?', [car_id]);
 
     const [[renter]] = await pool.execute('SELECT id, name, email FROM users WHERE id = ?', [req.user.id]);
+    const driverLabel = with_driver ? 'avec chauffeur' : 'sans chauffeur';
     const actionLabel = type === 'rental' ? 'location' : 'réservation';
 
     await createNotification(
       car.owner_id,
       `Nouvelle ${actionLabel}`,
-      `${renter.name} a effectué une ${actionLabel} pour ${car.make} ${car.model}.`,
+      `${renter.name} a effectué une ${actionLabel} ${driverLabel} pour ${car.make} ${car.model}.`,
       type === 'rental' ? 'rental' : 'reservation'
     );
     await createNotification(
       renter.id,
       `Demande de ${actionLabel} envoyee`,
-      `Votre demande pour ${car.make} ${car.model} a ete envoyee au proprietaire.`,
+      `Votre demande ${driverLabel} pour ${car.make} ${car.model} a ete envoyee au proprietaire.`,
       'reservation'
     );
 
@@ -998,6 +1010,7 @@ app.post('/api/reservations', authMiddleware, async (req, res) => {
       total_price,
       status: 'pending',
       type,
+      with_driver: Boolean(with_driver),
       created_at: new Date(),
       invoice_id: null,
       invoice_number: null,
@@ -1036,10 +1049,6 @@ app.put('/api/reservations/:id/status', authMiddleware, async (req, res) => {
     }
 
     await pool.execute('UPDATE reservations SET status = ? WHERE id = ?', [status, req.params.id]);
-
-    if (['rejected', 'cancelled', 'completed'].includes(status)) {
-      await pool.execute('UPDATE cars SET available = TRUE WHERE id = ?', [reservation.car_id]);
-    }
 
     let invoice = null;
     if (status === 'accepted') {
@@ -1191,9 +1200,14 @@ app.get('/api/invoices', authMiddleware, async (req, res) => {
 
 app.get('/api/notifications', authMiddleware, async (req, res) => {
   try {
+    const includeRead = String(req.query.includeRead || 'false').toLowerCase() === 'true';
     const [rows] = await pool.execute(
-      'SELECT id, title, message, type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
-      [req.user.id]
+      `SELECT id, title, message, type, is_read, created_at
+       FROM notifications
+       WHERE user_id = ?
+         AND (? = TRUE OR is_read = FALSE)
+       ORDER BY created_at DESC`,
+      [req.user.id, includeRead]
     );
 
     res.json(rows.map((item) => ({

@@ -11,6 +11,10 @@ export interface Car {
   ownerName?: string;
   ownerEmail?: string;
   available: boolean;
+  unavailablePeriods?: Array<{
+    from: string;
+    to: string;
+  }>;
   category: string;
   seats: number;
   transmission: 'Automatique' | 'Manuelle';
@@ -35,6 +39,7 @@ export interface Reservation {
   totalPrice: number;
   status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
   type?: 'rental' | 'reservation';
+  withDriver?: boolean;
   createdAt?: string;
   invoiceId?: string | null;
   invoiceNumber?: string | null;
@@ -69,6 +74,15 @@ export interface NotificationItem {
   type: 'info' | 'reservation' | 'rental' | 'invoice' | 'security';
   isRead: boolean;
   createdAt: string;
+}
+
+export interface CarAvailability {
+  carId: string;
+  available: boolean;
+  unavailablePeriods: Array<{
+    from: string;
+    to: string;
+  }>;
 }
 
 export interface Contract {

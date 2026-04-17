@@ -138,6 +138,24 @@ export function Login() {
                 )}
               </button>
             </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-3 text-gray-400">ou</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setError("La connexion Google sera active apres ajout de l'endpoint OAuth.")}
+              className="w-full flex items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+            >
+              <span className="text-lg leading-none">G</span>
+              Continuer avec Google
+            </button>
           </form>
         </div>
       </div>

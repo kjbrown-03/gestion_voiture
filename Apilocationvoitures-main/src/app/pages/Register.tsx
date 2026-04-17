@@ -15,6 +15,7 @@ export function Register() {
     role: "renter" // renter or owner
   });
   const [loading, setLoading] = useState(false);
+  const [googleInfo, setGoogleInfo] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +63,11 @@ export function Register() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100">
           <form className="space-y-5" onSubmit={handleSubmit}>
+            {googleInfo && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {googleInfo}
+              </div>
+            )}
             
             {/* Role Selection */}
             <div className="grid grid-cols-2 gap-4 mb-6">
@@ -165,6 +171,24 @@ export function Register() {
                 )}
               </button>
             </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-3 text-gray-400">ou</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setGoogleInfo("L'inscription Google sera active apres ajout de l'endpoint OAuth.")}
+              className="w-full flex items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+            >
+              <span className="text-lg leading-none">G</span>
+              Continuer avec Google
+            </button>
             
             <p className="text-xs text-center text-gray-500 flex items-start gap-1.5 mt-4">
               <ShieldCheck className="w-4 h-4 text-green-500 shrink-0" />

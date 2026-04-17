@@ -1,10 +1,16 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { Star, MapPin, Calendar, CheckCircle2, Shield, ShieldCheck, CarFront, User, Info, ArrowLeft, MessageSquare, Send } from "lucide-react";
+import { Star, MapPin, Calendar as CalendarIcon, CheckCircle2, Shield, ShieldCheck, CarFront, User, Info, ArrowLeft, MessageSquare, Send } from "lucide-react";
+import type { DateRange } from "react-day-picker";
+import { format } from "date-fns";
 import { ApiService } from "../services/api";
-import { Car, Review } from "../types";
+import { Car } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { Calendar } from "../components/ui/calendar";
+
+const toDateOnly = (value: Date) => format(value, "yyyy-MM-dd");
+const parseLocalDate = (value: string) => new Date(`${value}T00:00:00`);
 
 export function CarDetails() {
   const { id } = useParams<{ id: string }>();
@@ -13,44 +19,55 @@ export function CarDetails() {
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [withDriver, setWithDriver] = useState(false);
   const [submitting, setSubmitting] = useState<"rental" | "reservation" | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
   const [requestType, setRequestType] = useState<"rental" | "reservation" | null>(null);
   const [actionError, setActionError] = useState("");
-  
-  // Comments state
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState("");
 
+  const startDate = dateRange?.from ? toDateOnly(dateRange.from) : "";
+  const endDate = dateRange?.to ? toDateOnly(dateRange.to) : "";
+
   useEffect(() => {
     if (!id) return;
-    ApiService.getCarById(id)
-      .then((data) => {
-        setCar(data);
+
+    const fetchCar = async () => {
+      setLoading(true);
+      try {
+        const [carData, availabilityData, commentData] = await Promise.all([
+          ApiService.getCarById(id),
+          ApiService.getCarAvailability(id),
+          ApiService.getCarComments(id)
+        ]);
+
+        setCar({
+          ...carData,
+          available: availabilityData.available,
+          unavailablePeriods: availabilityData.unavailablePeriods
+        });
         setActiveImage(0);
-      })
-      .finally(() => setLoading(false));
-    
-    // Fetch comments
+        setComments(commentData);
+      } finally {
+        setLoading(false);
+        setLoadingComments(false);
+      }
+    };
+
     setLoadingComments(true);
-    ApiService.getCarComments(id)
-      .then((data) => setComments(data))
-      .catch(console.error)
-      .finally(() => setLoadingComments(false));
+    fetchCar().catch(console.error);
   }, [id]);
 
   const calculateDays = () => {
-    if (!startDate || !endDate) return 0;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 1;
+    if (!dateRange?.from || !dateRange?.to) return 0;
+    const diffTime = dateRange.to.getTime() - dateRange.from.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays > 0 ? diffDays : 0;
   };
 
   const calculateTotal = () => {
@@ -58,23 +75,43 @@ export function CarDetails() {
     return calculateDays() * car.pricePerDay;
   };
 
+  const disabledDays = [
+    { before: new Date(new Date().setHours(0, 0, 0, 0)) },
+    ...((car?.unavailablePeriods || []).map((period) => ({
+      from: parseLocalDate(period.from),
+      to: parseLocalDate(period.to)
+    })))
+  ];
+
+  const refreshAvailability = async () => {
+    if (!id || !car) return;
+    const availability = await ApiService.getCarAvailability(id);
+    setCar({
+      ...car,
+      available: availability.available,
+      unavailablePeriods: availability.unavailablePeriods
+    });
+  };
+
   const handleAction = async (type: "rental" | "reservation") => {
     if (!startDate || !endDate || !car || !user) return;
     setSubmitting(type);
     setActionError("");
     try {
-      const result = await ApiService.createReservation({
+      await ApiService.createReservation({
         carId: car.id,
         startDate,
         endDate,
         totalPrice: Number((calculateTotal() * 1.05).toFixed(2)),
-        type
+        type,
+        withDriver
       });
+      await refreshAvailability();
       setRequestType(type);
       setShowInvoice(true);
-      setCar({ ...car, available: false });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Erreur lors de l'operation.");
+      await refreshAvailability();
     } finally {
       setSubmitting(null);
     }
@@ -85,22 +122,16 @@ export function CarDetails() {
       setCommentError("Vous devez être connecté pour laisser un commentaire.");
       return;
     }
-    
+
     setSubmittingComment(true);
     setCommentError("");
-    
+
     try {
       if (id) {
         await ApiService.submitCarComment(id, newComment);
-        
-        // Refresh comments
         const updatedComments = await ApiService.getCarComments(id);
         setComments(updatedComments);
-        
-        // Reset form
         setNewComment("");
-        setCommentError("");
-        alert("Merci pour votre commentaire ! Le propriétaire a été notifié.");
       }
     } catch (error) {
       setCommentError(error instanceof Error ? error.message : "Erreur lors de l'envoi du commentaire.");
@@ -151,10 +182,15 @@ export function CarDetails() {
 
             <div className="text-left md:text-right bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
               <div className="text-sm text-gray-500 mb-1">Prix de location</div>
-              <div className="text-3xl font-extrabold text-blue-600">{car.pricePerDay.toLocaleString('fr-CM')} <span className="text-lg text-gray-500 font-medium">FCFA/jour</span></div>
-              <div className={`mt-2 text-sm font-semibold ${car.available ? 'text-green-600' : 'text-red-600'}`}>
-                {car.available ? "Disponible" : "Indisponible"}
+              <div className="text-3xl font-extrabold text-blue-600">{car.pricePerDay.toLocaleString("fr-CM")} <span className="text-lg text-gray-500 font-medium">FCFA/jour</span></div>
+              <div className={`mt-2 text-sm font-semibold ${car.available ? "text-green-600" : "text-red-600"}`}>
+                {car.available ? "Disponible aujourd'hui" : "Indisponible aujourd'hui"}
               </div>
+              {(car.unavailablePeriods?.length || 0) > 0 && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Les dates deja prises sont grisées dans le calendrier.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -173,7 +209,7 @@ export function CarDetails() {
                     key={`${image}-${index}`}
                     type="button"
                     onClick={() => setActiveImage(index)}
-                    className={`h-20 rounded-xl overflow-hidden border-2 ${activeImage === index ? 'border-blue-600' : 'border-transparent'}`}
+                    className={`h-20 rounded-xl overflow-hidden border-2 ${activeImage === index ? "border-blue-600" : "border-transparent"}`}
                   >
                     <ImageWithFallback src={image} alt={`${car.make} ${car.model} ${index + 1}`} className="w-full h-full object-cover" />
                   </button>
@@ -197,7 +233,7 @@ export function CarDetails() {
                 <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <CheckCircle2 className="w-6 h-6 text-blue-500 mb-2" />
                   <span className="text-sm text-gray-500">Disponibilite</span>
-                  <span className="font-bold text-gray-900">{car.available ? "Oui" : "Non"}</span>
+                  <span className="font-bold text-gray-900">{car.available ? "Partielle ou libre" : "Dates en cours prises"}</span>
                 </div>
                 <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <Shield className="w-6 h-6 text-blue-500 mb-2" />
@@ -209,9 +245,22 @@ export function CarDetails() {
               <div className="mt-8 border-t border-gray-100 pt-8">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Description</h3>
                 <p className="text-gray-600 leading-relaxed">
-                  Vehicule en bon etat, propose par {car.ownerName}. Une facture est generee pour toute location ou reservation, et le proprietaire recoit automatiquement une notification dans son dashboard.
+                  Vehicule en bon etat, propose par {car.ownerName}. Les dates deja reservees sont grisées dans le calendrier pour eviter les doublons, et vous pouvez envoyer une demande avec ou sans chauffeur.
                 </p>
               </div>
+
+              {(car.unavailablePeriods?.length || 0) > 0 && (
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                  <h3 className="text-sm font-bold text-amber-900 mb-3">Periodes deja reservees</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {car.unavailablePeriods?.map((period) => (
+                      <span key={`${period.from}-${period.to}`} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200">
+                        {format(parseLocalDate(period.from), "dd/MM/yyyy")} au {format(parseLocalDate(period.to), "dd/MM/yyyy")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 flex items-center justify-between">
@@ -229,7 +278,6 @@ export function CarDetails() {
               <span className="text-sm text-gray-500">{car.ownerEmail}</span>
             </div>
 
-            {/* Comments Section */}
             <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100">
               <div className="flex items-center gap-3 mb-6">
                 <MessageSquare className="w-6 h-6 text-blue-600" />
@@ -239,28 +287,25 @@ export function CarDetails() {
                 </span>
               </div>
 
-              {/* Add Comment Form */}
-              {user && (user.role === 'renter' || user.id !== car.ownerId) && (
+              {user && (user.role === "renter" || user.id !== car.ownerId) && (
                 <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Laisser un commentaire</h3>
-                  
+
                   {commentError && (
                     <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                       {commentError}
                     </div>
                   )}
-                  
+
                   <div className="space-y-4">
-                    <div>
-                      <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Qu'avez-vous pensé de cette voiture ?"
-                        rows={3}
-                        className="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-                      />
-                    </div>
-                    
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Qu'avez-vous pense de cette voiture ?"
+                      rows={3}
+                      className="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                    />
+
                     <button
                       onClick={handleSubmitComment}
                       disabled={submittingComment || !newComment.trim()}
@@ -269,12 +314,10 @@ export function CarDetails() {
                       <Send className="w-4 h-4" />
                       {submittingComment ? "Envoi..." : "Publier"}
                     </button>
-                    
                   </div>
                 </div>
               )}
 
-              {/* Comments List */}
               {loadingComments ? (
                 <div className="text-center py-8 text-gray-500">Chargement des commentaires...</div>
               ) : comments.length > 0 ? (
@@ -284,17 +327,17 @@ export function CarDetails() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">
-                            {commentItem.userName?.slice(0, 2).toUpperCase() || 'U'}
+                            {commentItem.userName?.slice(0, 2).toUpperCase() || "U"}
                           </div>
                           <div>
-                            <h4 className="font-semibold text-gray-900">{commentItem.userName || 'Utilisateur'}</h4>
+                            <h4 className="font-semibold text-gray-900">{commentItem.userName || "Utilisateur"}</h4>
                             <p className="text-xs text-gray-500">
-                              {new Date(commentItem.createdAt).toLocaleDateString('fr-FR', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
+                              {new Date(commentItem.createdAt).toLocaleDateString("fr-FR", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit"
                               })}
                             </p>
                           </div>
@@ -308,7 +351,7 @@ export function CarDetails() {
                 <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
                   <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucun commentaire</h3>
-                  <p className="text-gray-500 text-sm">Soyez le premier à donner votre point de vue sur cette voiture !</p>
+                  <p className="text-gray-500 text-sm">Soyez le premier a donner votre point de vue sur cette voiture.</p>
                 </div>
               )}
             </div>
@@ -317,48 +360,55 @@ export function CarDetails() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl p-6 md:p-8 shadow-lg border border-gray-200 sticky top-28">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-600" /> Louer ou reserver
+                <CalendarIcon className="w-5 h-5 text-blue-600" /> Louer ou reserver
               </h2>
 
               <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Date de depart</label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
+                <div className="rounded-2xl border border-gray-200 overflow-hidden">
+                  <Calendar
+                    mode="range"
+                    numberOfMonths={1}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    disabled={disabledDays}
+                    className="w-full"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Date de retour</label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    min={startDate || new Date().toISOString().split("T")[0]}
-                  />
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <p className="text-sm font-semibold text-gray-800 mb-3">Chauffeur</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setWithDriver(false)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${!withDriver ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-700"}`}
+                    >
+                      Sans chauffeur
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWithDriver(true)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${withDriver ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-700"}`}
+                    >
+                      Avec chauffeur
+                    </button>
+                  </div>
                 </div>
 
                 {startDate && endDate && (
                   <div className="bg-blue-50 rounded-xl p-5 border border-blue-100 my-6">
                     <div className="flex justify-between text-sm text-gray-600 mb-2 font-medium">
-                      <span>{car.pricePerDay.toLocaleString('fr-CM')} FCFA x {calculateDays()} jour(s)</span>
-                      <span>{calculateTotal().toLocaleString('fr-CM')} FCFA</span>
+                      <span>{car.pricePerDay.toLocaleString("fr-CM")} FCFA x {calculateDays()} jour(s)</span>
+                      <span>{calculateTotal().toLocaleString("fr-CM")} FCFA</span>
                     </div>
                     <div className="flex justify-between text-sm text-gray-600 mb-4 font-medium">
                       <span>Frais de service (5%)</span>
-                      <span>{(calculateTotal() * 0.05).toLocaleString('fr-CM')} FCFA</span>
+                      <span>{(calculateTotal() * 0.05).toLocaleString("fr-CM")} FCFA</span>
                     </div>
                     <div className="border-t border-blue-200 pt-3 flex justify-between items-center">
                       <span className="font-bold text-gray-900">Total TTC</span>
                       <span className="text-xl font-extrabold text-blue-700">
-                        {(calculateTotal() * 1.05).toLocaleString('fr-CM')} FCFA
+                        {(calculateTotal() * 1.05).toLocaleString("fr-CM")} FCFA
                       </span>
                     </div>
                   </div>
@@ -370,11 +420,15 @@ export function CarDetails() {
                   </div>
                 )}
 
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                  Les dates deja reservees apparaissent en gris et ne peuvent pas etre selectionnees.
+                </div>
+
                 {user ? (
                   <div className="space-y-3">
                     <button
                       type="button"
-                      disabled={submitting !== null || !startDate || !endDate || !car.available}
+                      disabled={submitting !== null || !startDate || !endDate}
                       onClick={() => handleAction("rental")}
                       className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-xl py-3.5 transition-all shadow-md"
                     >
@@ -382,7 +436,7 @@ export function CarDetails() {
                     </button>
                     <button
                       type="button"
-                      disabled={submitting !== null || !startDate || !endDate || !car.available}
+                      disabled={submitting !== null || !startDate || !endDate}
                       onClick={() => handleAction("reservation")}
                       className="w-full bg-gray-900 hover:bg-black disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-xl py-3.5 transition-all shadow-md"
                     >
@@ -392,7 +446,7 @@ export function CarDetails() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => navigate('/login')}
+                    onClick={() => navigate("/login")}
                     className="w-full bg-gray-900 hover:bg-black text-white font-bold rounded-xl py-3.5 transition-all shadow-md"
                   >
                     Connectez-vous pour continuer
@@ -400,7 +454,7 @@ export function CarDetails() {
                 )}
 
                 <p className="text-xs text-center text-gray-500 mt-4 flex items-center justify-center gap-1.5">
-                  <Info className="w-3.5 h-3.5" /> Une facture est creee dans les deux cas.
+                  <Info className="w-3.5 h-3.5" /> Location ou reservation possibles, avec ou sans chauffeur.
                 </p>
               </div>
             </div>
@@ -420,27 +474,21 @@ export function CarDetails() {
             </div>
 
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-200 pb-2">Facture</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-200 pb-2">Recapitulatif</h3>
               <div className="space-y-3 text-sm text-gray-600">
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Type :</span> <span>{requestType === "rental" ? "Location" : "Reservation"}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-gray-800">Mode :</span> <span>{withDriver ? "Avec chauffeur" : "Sans chauffeur"}</span></div>
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Locataire :</span> <span>{user?.name}</span></div>
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Proprietaire :</span> <span>{car.ownerName}</span></div>
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Vehicule :</span> <span>{car.make} {car.model}</span></div>
-                <div className="flex justify-between"><span className="font-semibold text-gray-800">Periode :</span> <span>Du {new Date(startDate).toLocaleDateString()} au {new Date(endDate).toLocaleDateString()}</span></div>
-                <div className="border-t border-gray-200 pt-3 mt-3">
-                  <div className="flex justify-between"><span>Montant location :</span> <span>{calculateTotal().toLocaleString('fr-CM')} FCFA</span></div>
-                  <div className="flex justify-between"><span>Frais service :</span> <span>{(calculateTotal() * 0.05).toLocaleString('fr-CM')} FCFA</span></div>
-                  <div className="flex justify-between font-bold text-lg text-gray-900 mt-2 pt-2 border-t border-gray-200">
-                    <span>Total TTC :</span> <span className="text-blue-600">{(calculateTotal() * 1.05).toLocaleString('fr-CM')} FCFA</span>
-                  </div>
-                </div>
+                <div className="flex justify-between"><span className="font-semibold text-gray-800">Periode :</span> <span>Du {startDate ? format(parseLocalDate(startDate), "dd/MM/yyyy") : "-"} au {endDate ? format(parseLocalDate(endDate), "dd/MM/yyyy") : "-"}</span></div>
               </div>
             </div>
 
             <button
               onClick={() => {
                 setShowInvoice(false);
-                navigate('/dashboard/renter');
+                navigate("/dashboard/renter");
               }}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors"
             >
