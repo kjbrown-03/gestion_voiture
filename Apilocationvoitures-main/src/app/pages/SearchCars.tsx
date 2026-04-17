@@ -4,6 +4,7 @@ import { Filter, Star, MapPin, SlidersHorizontal, User, CarFront } from "lucide-
 import { ApiService } from "../services/api";
 import { Car } from "../types";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { getCarImageFallbacks } from "../utils/car-image-fallbacks";
 
 export function SearchCars() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -198,6 +199,7 @@ export function SearchCars() {
                   <Link to={`/cars/${car.id}`} className="block relative h-48 overflow-hidden bg-gray-100">
                     <ImageWithFallback
                       src={car.images[0]}
+                      fallbackSources={getCarImageFallbacks(car)}
                       alt={`${car.make} ${car.model}`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

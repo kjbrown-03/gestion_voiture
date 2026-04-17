@@ -5,6 +5,7 @@ import { PlusCircle, X } from "lucide-react";
 import { Link } from "react-router";
 import { ApiService } from "../services/api";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { getCarImageFallbacks } from "../utils/car-image-fallbacks";
 
 const CAR_BRANDS: Record<string, string[]> = {
   "Toyota": ["RAV4", "Hilux", "Camry", "Corolla", "Land Cruiser"],
@@ -215,7 +216,7 @@ export function OwnerDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {myCars.map((car) => (
           <div key={car.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-md transition-shadow">
-            <ImageWithFallback src={car.images[0]} alt={`${car.make} ${car.model}`} className="h-48 w-full object-cover" />
+            <ImageWithFallback src={car.images[0]} fallbackSources={getCarImageFallbacks(car)} alt={`${car.make} ${car.model}`} className="h-48 w-full object-cover" />
             <div className="p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-1">{car.make} {car.model}</h3>
               <p className="text-sm text-gray-500 mb-2">{car.year} • {car.category}</p>

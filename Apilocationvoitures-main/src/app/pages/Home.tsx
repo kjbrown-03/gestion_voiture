@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { getCarImageFallbacks } from "../utils/car-image-fallbacks";
 
 export function Home() {
   const navigate = useNavigate();
@@ -153,7 +154,8 @@ export function Home() {
               <div key={car.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl transition-shadow duration-300 group flex flex-col">
                 <div className="relative h-56 overflow-hidden bg-gray-200">
                   <ImageWithFallback 
-                    src={car.images[0]} 
+                    src={car.images[0]}
+                    fallbackSources={getCarImageFallbacks(car)}
                     alt={`${car.make} ${car.model}`} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />

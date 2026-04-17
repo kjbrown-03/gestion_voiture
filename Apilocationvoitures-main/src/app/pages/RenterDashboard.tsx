@@ -5,6 +5,7 @@ import { Calendar, CarFront, CheckCircle, Clock, FileText, XCircle } from "lucid
 import { Link } from "react-router";
 import { ApiService } from "../services/api";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { getCarImageFallbacks } from "../utils/car-image-fallbacks";
 
 export function RenterDashboard() {
   const { user } = useAuth();
@@ -128,7 +129,7 @@ export function RenterDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {cars.map((car) => (
             <div key={car.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200 flex flex-col">
-              <ImageWithFallback src={car.images[0]} alt={`${car.make} ${car.model}`} className="h-48 w-full object-cover" />
+              <ImageWithFallback src={car.images[0]} fallbackSources={getCarImageFallbacks(car)} alt={`${car.make} ${car.model}`} className="h-48 w-full object-cover" />
               <div className="p-5 flex flex-col flex-1">
                 <h3 className="text-lg font-bold text-gray-900">{car.make} {car.model}</h3>
                 <p className="text-sm text-gray-500 mt-1">{car.location} • {car.category}</p>
