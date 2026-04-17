@@ -1256,10 +1256,11 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
   try {
     const includeRead = String(req.query.includeRead || 'false').toLowerCase() === 'true';
     const [rows] = await pool.execute(
-      `SELECT id, title, message, type, is_read, created_at
+      `SELECT MAX(id) AS id, title, message, type, is_read, MAX(created_at) AS created_at
        FROM notifications
        WHERE user_id = ?
          AND (? = TRUE OR is_read = FALSE)
+       GROUP BY title, message, type, is_read
        ORDER BY created_at DESC`,
       [req.user.id, includeRead]
     );
@@ -1279,7 +1280,20 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
 
 app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
   try {
-    await pool.execute('UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const [[notification]] = await pool.execute(
+      'SELECT title, message, type FROM notifications WHERE id = ? AND user_id = ? LIMIT 1',
+      [req.params.id, req.user.id]
+    );
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification introuvable." });
+    }
+
+    await pool.execute(
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND title = ? AND message = ? AND type = ?',
+      [req.user.id, notification.title, notification.message, notification.type]
+    );
+
     res.json({ message: "Notification marquée comme lue." });
   } catch (error) {
     res.status(500).json({ message: error.message });

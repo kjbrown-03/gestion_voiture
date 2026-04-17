@@ -39,6 +39,8 @@ export function Layout() {
       .catch(() => setNotifications([]));
   }, [user]);
 
+  const unreadCount = notifications.filter((item) => !item.isRead).length;
+
   const navLinks = [
     { name: "Accueil", path: "/" },
     { name: "Trouver une voiture", path: "/cars" },
@@ -112,9 +114,9 @@ export function Layout() {
                     className="relative flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
                   >
                     <Bell className="w-5 h-5 text-gray-700" />
-                    {notifications.filter((item) => !item.isRead).length > 0 && (
+                    {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
-                        {notifications.filter((item) => !item.isRead).length}
+                        {unreadCount > 9 ? "9+" : unreadCount}
                       </span>
                     )}
                   </button>
@@ -185,12 +187,16 @@ export function Layout() {
                 <button
                   key={notification.id}
                   type="button"
-                  onClick={async () => {
-                    if (!notification.isRead) {
-                      await ApiService.markNotificationRead(notification.id);
-                      setNotifications((current) => current.filter((item) => item.id !== notification.id));
-                    }
-                  }}
+                    onClick={async () => {
+                      if (!notification.isRead) {
+                        await ApiService.markNotificationRead(notification.id);
+                        setNotifications((current) =>
+                          current.filter((item) =>
+                            !(item.title === notification.title && item.message === notification.message && item.type === notification.type)
+                          )
+                        );
+                      }
+                    }}
                   className={`w-full text-left rounded-xl border p-4 ${notification.isRead ? "bg-gray-50 border-gray-200" : "bg-blue-50 border-blue-200"}`}
                 >
                   <p className="font-semibold text-gray-900">{notification.title}</p>

@@ -79,6 +79,24 @@ export function AdminDashboard() {
     }
   };
 
+  const addImageUrl = () => {
+    if (!imageInput.trim()) return;
+    setNewCar((current: any) => ({ ...current, images: [...current.images, imageInput.trim()] }));
+    setImageInput("");
+  };
+
+  const importImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const readers = Array.from(files).map((file) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }));
+    const importedImages = await Promise.all(readers);
+    setNewCar((current: any) => ({ ...current, images: [...current.images, ...importedImages] }));
+  };
+
   const handleUpdateImages = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingImagesForCar) return;
@@ -95,6 +113,18 @@ export function AdminDashboard() {
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Erreur.");
     }
+  };
+
+  const importEditingImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const readers = Array.from(files).map((file) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }));
+    const importedImages = await Promise.all(readers);
+    setEditingImagesLocal((current) => [...current, ...importedImages]);
   };
 
   return (
@@ -265,10 +295,25 @@ export function AdminDashboard() {
                   Ajouter
                 </button>
               </div>
+              <div>
+                <label className="inline-flex cursor-pointer items-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100">
+                  Importer des images
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      importImages(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <div className="space-y-2">
                 {newCar.images.map((image: string, index: number) => (
                   <div key={`${image}-${index}`} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
-                    <span className="truncate mr-3">{image}</span>
+                    <span className="truncate mr-3">{image.startsWith("data:image") ? `Image importee ${index + 1}` : image}</span>
                     <button type="button" onClick={() => setNewCar({ ...newCar, images: newCar.images.filter((_: string, i: number) => i !== index) })} className="text-red-600">
                       Supprimer
                     </button>
@@ -308,6 +353,21 @@ export function AdminDashboard() {
                 >
                   Ajouter
                 </button>
+              </div>
+              <div>
+                <label className="inline-flex cursor-pointer items-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100">
+                  Importer depuis l'ordinateur
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      importEditingImages(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
               </div>
               <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
                 {editingImagesLocal.map((img, i) => (
