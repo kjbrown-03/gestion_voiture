@@ -4,7 +4,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { ApiService } from "../services/api";
 import { Car } from "../types";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
-import { DashboardNotifications } from "../components/DashboardNotifications";
 
 const DEFAULT_ADMIN_IMAGES = [
   "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg/800px-2021_Hyundai_Tucson_%28NX4%29_1.6_T-GDi_HEV.jpg",
@@ -169,8 +168,6 @@ export function AdminDashboard() {
           )}
         </div>
       </section>
-
-      <DashboardNotifications />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

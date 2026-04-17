@@ -14,6 +14,7 @@ app.use(cors());
 
 const PORT = Number(process.env.PORT || 5000);
 const SECRET_KEY = process.env.JWT_SECRET || 'SUPER_SECRET_LOCAUTO_KEY';
+const DRIVER_FEE_PER_DAY = Number(process.env.DRIVER_FEE_PER_DAY || 10000);
 
 const defaultImages = [
   "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=1000", // Toyota RAV4
@@ -248,6 +249,18 @@ const renderInvoiceHtml = (invoice) => `
 `;
 
 const createNotification = async (userId, title, message, type = 'info') => {
+  const [[existing]] = await pool.execute(
+    `SELECT id
+     FROM notifications
+     WHERE user_id = ? AND title = ? AND message = ? AND type = ? AND is_read = FALSE
+     LIMIT 1`,
+    [userId, title, message, type]
+  );
+
+  if (existing) {
+    return existing.id;
+  }
+
   await pool.execute(
     'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
     [userId, title, message, type]
@@ -257,6 +270,14 @@ const createNotification = async (userId, title, message, type = 'info') => {
 const normalizeRating = (rating) => {
   const numericRating = Number(rating || 0);
   return numericRating > 0 ? Number(numericRating.toFixed(1)) : 4.0;
+};
+
+const calculateReservationDays = (startDate, endDate) => {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const diffTime = end.getTime() - start.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return diffDays > 0 ? diffDays : 0;
 };
 
 const toIsoDate = (value) => new Date(value).toISOString().split('T')[0];
@@ -433,6 +454,17 @@ const bootstrapDatabase = async () => {
   await ensureColumnExists('reservations', 'type', `ENUM('rental','reservation') DEFAULT 'reservation'`);
   await ensureColumnExists('reservations', 'with_driver', `BOOLEAN DEFAULT FALSE`);
   await ensureColumnExists('notifications', 'is_read', `BOOLEAN DEFAULT FALSE`);
+  await pool.query(`
+    DELETE n1
+    FROM notifications n1
+    INNER JOIN notifications n2
+      ON n1.user_id = n2.user_id
+     AND n1.title = n2.title
+     AND n1.message = n2.message
+     AND n1.type = n2.type
+     AND n1.is_read = n2.is_read
+     AND n1.id < n2.id
+  `);
   
   // Fix location names to match frontend (add accents)
   await pool.execute("UPDATE cars SET location = 'Yaoundé' WHERE location = 'Yaounde'");
@@ -530,6 +562,24 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const reservationDays = calculateReservationDays(start_date, end_date);
+    const baseAmount = reservationDays * Number(car.pricePerDay);
+    const driverFee = Boolean(with_driver) ? reservationDays * DRIVER_FEE_PER_DAY : 0;
+    const expectedTotalPrice = Number(((baseAmount + driverFee) * 1.05).toFixed(2));
+
+    if (Number(total_price) !== expectedTotalPrice) {
+      return res.status(400).json({
+        message: `Prix invalide. Total attendu: ${expectedTotalPrice} FCFA.`,
+        pricing: {
+          days: reservationDays,
+          baseAmount,
+          driverFee,
+          serviceFee: Number(((baseAmount + driverFee) * 0.05).toFixed(2)),
+          total: expectedTotalPrice
+        }
+      });
+    }
+
     const [result] = await pool.execute(
       'INSERT INTO users (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)',
       [name, email, phone, hashedPassword, role || 'renter']
@@ -1046,6 +1096,10 @@ app.put('/api/reservations/:id/status', authMiddleware, async (req, res) => {
 
     if (req.user.role === 'owner' && Number(reservation.owner_id) !== Number(req.user.id)) {
       return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    if (reservation.status === status) {
+      return res.json({ message: `Statut déjà défini sur ${status}` });
     }
 
     await pool.execute('UPDATE reservations SET status = ? WHERE id = ?', [status, req.params.id]);

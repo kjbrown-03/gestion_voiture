@@ -11,6 +11,7 @@ import { Calendar } from "../components/ui/calendar";
 
 const toDateOnly = (value: Date) => format(value, "yyyy-MM-dd");
 const parseLocalDate = (value: string) => new Date(`${value}T00:00:00`);
+const DRIVER_FEE_PER_DAY = 10000;
 
 export function CarDetails() {
   const { id } = useParams<{ id: string }>();
@@ -40,10 +41,14 @@ export function CarDetails() {
     const fetchCar = async () => {
       setLoading(true);
       try {
-        const [carData, availabilityData, commentData] = await Promise.all([
-          ApiService.getCarById(id),
-          ApiService.getCarAvailability(id),
-          ApiService.getCarComments(id)
+        const carData = await ApiService.getCarById(id);
+        const [availabilityData, commentData] = await Promise.all([
+          ApiService.getCarAvailability(id).catch(() => ({
+            carId: id,
+            available: carData.available,
+            unavailablePeriods: carData.unavailablePeriods || []
+          })),
+          ApiService.getCarComments(id).catch(() => [])
         ]);
 
         setCar({
@@ -53,6 +58,10 @@ export function CarDetails() {
         });
         setActiveImage(0);
         setComments(commentData);
+      } catch (error) {
+        console.error(error);
+        setCar(null);
+        setComments([]);
       } finally {
         setLoading(false);
         setLoadingComments(false);
@@ -60,7 +69,7 @@ export function CarDetails() {
     };
 
     setLoadingComments(true);
-    fetchCar().catch(console.error);
+    fetchCar();
   }, [id]);
 
   const calculateDays = () => {
@@ -74,6 +83,13 @@ export function CarDetails() {
     if (!car) return 0;
     return calculateDays() * car.pricePerDay;
   };
+
+  const calculateDriverFee = () => {
+    if (!withDriver) return 0;
+    return calculateDays() * DRIVER_FEE_PER_DAY;
+  };
+
+  const calculateSubtotal = () => calculateTotal() + calculateDriverFee();
 
   const disabledDays = [
     { before: new Date(new Date().setHours(0, 0, 0, 0)) },
@@ -102,7 +118,7 @@ export function CarDetails() {
         carId: car.id,
         startDate,
         endDate,
-        totalPrice: Number((calculateTotal() * 1.05).toFixed(2)),
+        totalPrice: Number((calculateSubtotal() * 1.05).toFixed(2)),
         type,
         withDriver
       });
@@ -401,14 +417,20 @@ export function CarDetails() {
                       <span>{car.pricePerDay.toLocaleString("fr-CM")} FCFA x {calculateDays()} jour(s)</span>
                       <span>{calculateTotal().toLocaleString("fr-CM")} FCFA</span>
                     </div>
+                    {withDriver && (
+                      <div className="flex justify-between text-sm text-gray-600 mb-2 font-medium">
+                        <span>Chauffeur {DRIVER_FEE_PER_DAY.toLocaleString("fr-CM")} FCFA x {calculateDays()} jour(s)</span>
+                        <span>{calculateDriverFee().toLocaleString("fr-CM")} FCFA</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm text-gray-600 mb-4 font-medium">
                       <span>Frais de service (5%)</span>
-                      <span>{(calculateTotal() * 0.05).toLocaleString("fr-CM")} FCFA</span>
+                      <span>{(calculateSubtotal() * 0.05).toLocaleString("fr-CM")} FCFA</span>
                     </div>
                     <div className="border-t border-blue-200 pt-3 flex justify-between items-center">
                       <span className="font-bold text-gray-900">Total TTC</span>
                       <span className="text-xl font-extrabold text-blue-700">
-                        {(calculateTotal() * 1.05).toLocaleString("fr-CM")} FCFA
+                        {(calculateSubtotal() * 1.05).toLocaleString("fr-CM")} FCFA
                       </span>
                     </div>
                   </div>
@@ -482,6 +504,8 @@ export function CarDetails() {
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Proprietaire :</span> <span>{car.ownerName}</span></div>
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Vehicule :</span> <span>{car.make} {car.model}</span></div>
                 <div className="flex justify-between"><span className="font-semibold text-gray-800">Periode :</span> <span>Du {startDate ? format(parseLocalDate(startDate), "dd/MM/yyyy") : "-"} au {endDate ? format(parseLocalDate(endDate), "dd/MM/yyyy") : "-"}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-gray-800">Sous-total :</span> <span>{calculateSubtotal().toLocaleString("fr-CM")} FCFA</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-gray-800">Total TTC :</span> <span>{(calculateSubtotal() * 1.05).toLocaleString("fr-CM")} FCFA</span></div>
               </div>
             </div>
 

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     total_price DECIMAL(10, 2) NOT NULL,
     status ENUM('pending', 'accepted', 'rejected', 'cancelled', 'completed') DEFAULT 'pending',
     type ENUM('rental', 'reservation') DEFAULT 'reservation',
+    with_driver BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
     FOREIGN KEY (renter_id) REFERENCES users(id) ON DELETE CASCADE
@@ -105,4 +106,3 @@ CREATE TABLE IF NOT EXISTS comments (
     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-

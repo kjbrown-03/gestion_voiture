@@ -5,7 +5,6 @@ import { PlusCircle, X } from "lucide-react";
 import { Link } from "react-router";
 import { ApiService } from "../services/api";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
-import { DashboardNotifications } from "../components/DashboardNotifications";
 
 const CAR_BRANDS: Record<string, string[]> = {
   "Toyota": ["RAV4", "Hilux", "Camry", "Corolla", "Land Cruiser"],
@@ -244,8 +243,6 @@ export function OwnerDashboard() {
           </div>
         ))}
       </div>
-
-      <DashboardNotifications />
 
       {isAddingCar && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

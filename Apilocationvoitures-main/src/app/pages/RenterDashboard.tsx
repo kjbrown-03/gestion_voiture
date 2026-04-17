@@ -5,7 +5,6 @@ import { Calendar, CarFront, CheckCircle, Clock, FileText, XCircle } from "lucid
 import { Link } from "react-router";
 import { ApiService } from "../services/api";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
-import { DashboardNotifications } from "../components/DashboardNotifications";
 
 export function RenterDashboard() {
   const { user } = useAuth();
@@ -215,8 +214,6 @@ export function RenterDashboard() {
           </div>
         )}
       </section>
-
-      <DashboardNotifications />
 
       {selectedReservation && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
